@@ -444,29 +444,25 @@ function ProfileDetail({
             <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl border border-violet-200/12 bg-violet-400/12 text-violet-100">
               <User size={25} />
             </span>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-lg font-black text-white">{visibleName}</p>
               <p className="mt-1 truncate text-xs font-semibold text-slate-500">
-                Private Plans hisobi
+                {email ?? "Hisob ma'lumoti yuklanmoqda..."}
               </p>
               <span className="mt-2 inline-flex rounded-full border border-violet-200/12 bg-violet-400/10 px-2.5 py-1 text-[11px] font-black text-violet-100">
                 Free
               </span>
             </div>
+            <button
+              type="button"
+              onClick={openProfileEditor}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-200/20 bg-[#3A025B] text-white transition duration-300 hover:border-[#7F00FF]/50 hover:bg-[#3A025B] active:scale-95"
+              aria-label="Profilni tahrirlash"
+            >
+              <Edit3 size={17} />
+            </button>
           </div>
         </section>
-
-        <button
-          type="button"
-          onClick={openProfileEditor}
-          className="flex min-h-[56px] w-full items-center gap-3 rounded-[22px] border border-violet-200/10 bg-white/[0.035] px-4 py-3 text-left transition duration-300 active:scale-[0.99]"
-        >
-          <Edit3 size={18} className="shrink-0 text-white" />
-          <span className="min-w-0 flex-1 text-sm font-black text-white">
-            Profilni tahrirlash
-          </span>
-          <ChevronRight size={17} className="text-slate-500" />
-        </button>
 
         <ProfileMetricsCard
           title="Faollik"
