@@ -10,6 +10,7 @@ export type RoutineRow = TableRow<"routines">;
 export type GoalRow = TableRow<"goals">;
 export type CompletionLogRow = TableRow<"completion_logs">;
 export type ReflectionRow = TableRow<"reflections">;
+export type ProfileRow = TableRow<"profiles">;
 
 export type CreateSystemInput = Omit<
   TableInsert<"systems">,
@@ -54,6 +55,38 @@ async function requireUserId() {
   if (!user) throw new Error("Authentication is required.");
 
   return user.id;
+}
+
+export async function getProfile(): Promise<ProfileRow | null> {
+  const userId = await requireUserId();
+  const { data, error } = await getSupabaseClient()
+    .from("profiles")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateProfileDisplayName(
+  displayName: string | null,
+): Promise<ProfileRow> {
+  const userId = await requireUserId();
+  const { data, error } = await getSupabaseClient()
+    .from("profiles")
+    .upsert(
+      {
+        user_id: userId,
+        display_name: displayName,
+      },
+      { onConflict: "user_id" },
+    )
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function getSystems(): Promise<SystemRow[]> {

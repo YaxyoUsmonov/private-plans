@@ -21,10 +21,11 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { PanelEmptyState } from "@/components/ui/detail-panel";
+import { DetailPanel, PanelEmptyState } from "@/components/ui/detail-panel";
 import { sheetSpring } from "@/lib/motion";
 import { getCurrentUser, signOut } from "@/lib/auth";
 import type { System } from "@/lib/mock-data";
+import { getProfile, updateProfileDisplayName } from "@/lib/plans-db";
 import { uz } from "@/lib/uz";
 
 type SettingsKey = "profile" | "notifications" | "appearance" | "language" | "ai" | "privacy" | "help";
@@ -352,24 +353,28 @@ function ProfileDetail({
   onSignOut: () => void;
 }) {
   const [email, setEmail] = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState("Private Plans");
+  const [displayName, setDisplayName] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState("");
 
   useEffect(() => {
     let isActive = true;
 
     const loadUser = async () => {
       try {
-        const user = await getCurrentUser();
+        const [user, profile] = await Promise.all([
+          getCurrentUser(),
+          getProfile(),
+        ]);
         if (!isActive) return;
 
-        setEmail(user?.email ?? null);
-        setDisplayName(
-          typeof user?.user_metadata?.full_name === "string"
-            ? user.user_metadata.full_name
-            : typeof user?.user_metadata?.name === "string"
-              ? user.user_metadata.name
-              : "Private Plans",
-        );
+        const nextEmail = user?.email ?? null;
+        const nextDisplayName = profile?.display_name?.trim() ?? "";
+        setEmail(nextEmail);
+        setDisplayName(nextDisplayName);
+        setDraftName(nextDisplayName);
       } catch (error) {
         console.error("[Auth] Profil foydalanuvchisini yuklab bo'lmadi:", error);
       }
@@ -400,70 +405,164 @@ function ProfileDetail({
   const resolvedCount = completedCount + missedCount;
   const successRate =
     resolvedCount > 0 ? Math.round((completedCount / resolvedCount) * 100) : 0;
+  const visibleName =
+    displayName.trim() || email || "Hisob ma'lumoti yuklanmoqda...";
+
+  const openProfileEditor = () => {
+    setDraftName(displayName);
+    setProfileError("");
+    setEditOpen(true);
+  };
+
+  const saveProfile = async () => {
+    if (isSavingProfile) return;
+
+    setIsSavingProfile(true);
+    setProfileError("");
+
+    try {
+      const normalizedName = draftName.trim();
+      const profile = await updateProfileDisplayName(normalizedName || null);
+      setDisplayName(profile.display_name?.trim() ?? "");
+      setEditOpen(false);
+    } catch (error) {
+      setProfileError(
+        error instanceof Error
+          ? error.message
+          : "Profilni saqlab bo'lmadi.",
+      );
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   return (
-    <div className="space-y-3">
-      <section className="rounded-[24px] border border-violet-200/10 bg-white/[0.035] p-4">
-        <div className="flex items-center gap-3">
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl border border-violet-200/12 bg-violet-400/12 text-violet-100">
-            <User size={25} />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-lg font-black text-white">{displayName}</p>
-            <p className="mt-1 truncate text-xs font-semibold text-slate-500">
-              {email ?? "Hisob ma'lumoti yuklanmoqda..."}
-            </p>
-            <span className="mt-2 inline-flex rounded-full border border-violet-200/12 bg-violet-400/10 px-2.5 py-1 text-[11px] font-black text-violet-100">
-              Free
+    <>
+      <div className="space-y-3">
+        <section className="rounded-[24px] border border-violet-200/10 bg-white/[0.035] p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl border border-violet-200/12 bg-violet-400/12 text-violet-100">
+              <User size={25} />
             </span>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-black text-white">{visibleName}</p>
+              <p className="mt-1 truncate text-xs font-semibold text-slate-500">
+                Private Plans hisobi
+              </p>
+              <span className="mt-2 inline-flex rounded-full border border-violet-200/12 bg-violet-400/10 px-2.5 py-1 text-[11px] font-black text-violet-100">
+                Free
+              </span>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <ProfileMetricsCard
-        title="Faollik"
-        metrics={[
-          { label: "Tizimlar", value: systems.length },
-          { label: "Odatlar", value: routinesCount },
-          { label: "Maqsadlar", value: goalsCount },
-        ]}
-      />
-
-      <ProfileMetricsCard
-        title="Umumiy progress"
-        metrics={[
-          { label: "Bajarilgan", value: completedCount, tone: "success" },
-          { label: "Bajarilmagan", value: missedCount, tone: "danger" },
-          {
-            label: "Muvaffaqiyat",
-            value: successRate,
-            suffix: "%",
-            tone: "accent",
-          },
-        ]}
-      />
-
-      {signOutError ? (
-        <p
-          role="alert"
-          className="rounded-[20px] border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200"
+        <button
+          type="button"
+          onClick={openProfileEditor}
+          className="flex min-h-[56px] w-full items-center gap-3 rounded-[22px] border border-violet-200/10 bg-white/[0.035] px-4 py-3 text-left transition duration-300 active:scale-[0.99]"
         >
-          {signOutError}
-        </p>
-      ) : null}
+          <Edit3 size={18} className="shrink-0 text-white" />
+          <span className="min-w-0 flex-1 text-sm font-black text-white">
+            Profilni tahrirlash
+          </span>
+          <ChevronRight size={17} className="text-slate-500" />
+        </button>
 
-      <button
-        type="button"
-        onClick={onSignOut}
-        disabled={isSigningOut}
-        className="flex min-h-[56px] w-full items-center gap-3 rounded-[22px] border border-red-400/16 bg-red-500/[0.07] px-4 py-3 text-left transition duration-300 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
+        <ProfileMetricsCard
+          title="Faollik"
+          metrics={[
+            { label: "Tizimlar", value: systems.length },
+            { label: "Odatlar", value: routinesCount },
+            { label: "Maqsadlar", value: goalsCount },
+          ]}
+        />
+
+        <ProfileMetricsCard
+          title="Umumiy progress"
+          metrics={[
+            { label: "Bajarilgan", value: completedCount, tone: "success" },
+            { label: "Bajarilmagan", value: missedCount, tone: "danger" },
+            {
+              label: "Muvaffaqiyat",
+              value: successRate,
+              suffix: "%",
+              tone: "accent",
+            },
+          ]}
+        />
+
+        {signOutError ? (
+          <p
+            role="alert"
+            className="rounded-[20px] border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200"
+          >
+            {signOutError}
+          </p>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={onSignOut}
+          disabled={isSigningOut}
+          className="flex min-h-[56px] w-full items-center gap-3 rounded-[22px] border border-red-400/16 bg-red-500/[0.07] px-4 py-3 text-left transition duration-300 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
+        >
+          <LogOut size={18} className="shrink-0 text-red-300" />
+          <span className="min-w-0 flex-1 text-sm font-black text-red-100">
+            {isSigningOut ? "Chiqilmoqda..." : "Hisobdan chiqish"}
+          </span>
+        </button>
+      </div>
+
+      <DetailPanel
+        open={editOpen}
+        title="Profilni tahrirlash"
+        subtitle="Ismingizni yangilang"
+        icon={User}
+        mode="sheet"
+        zIndex="z-[80]"
+        showBack={false}
+        onClose={() => setEditOpen(false)}
+        footer={
+          <button
+            type="button"
+            onClick={() => void saveProfile()}
+            disabled={isSavingProfile}
+            className="plans-focus-button min-h-12 w-full rounded-full border text-sm font-black text-white disabled:cursor-wait disabled:opacity-50"
+          >
+            {isSavingProfile ? "Saqlanmoqda..." : "Saqlash"}
+          </button>
+        }
       >
-        <LogOut size={18} className="shrink-0 text-red-300" />
-        <span className="min-w-0 flex-1 text-sm font-black text-red-100">
-          {isSigningOut ? "Chiqilmoqda..." : "Hisobdan chiqish"}
-        </span>
-      </button>
-    </div>
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-2 block px-1 text-[12px] font-black uppercase tracking-[0.14em] text-violet-100">
+              Ism
+            </span>
+            <input
+              value={draftName}
+              onChange={(event) => setDraftName(event.target.value)}
+              autoFocus
+              maxLength={80}
+              placeholder={email ?? "Ismingizni kiriting"}
+              className="min-h-12 w-full rounded-[20px] border border-violet-200/10 bg-white/[0.04] px-4 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-violet-200/24"
+            />
+          </label>
+
+          <p className="px-1 text-xs font-semibold leading-5 text-slate-500">
+            Ism bo‘sh qoldirilsa, profil nomi sifatida emailingiz ko‘rsatiladi.
+          </p>
+
+          {profileError ? (
+            <p
+              role="alert"
+              className="rounded-[20px] border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200"
+            >
+              {profileError}
+            </p>
+          ) : null}
+        </div>
+      </DetailPanel>
+    </>
   );
 }
 
