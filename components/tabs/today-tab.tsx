@@ -15,9 +15,28 @@ import { toDateKey } from "@/lib/date-utils";
 type TodayTabProps = {
   systems: System[];
   onSystemsChange: React.Dispatch<React.SetStateAction<System[]>>;
+  onStatusPersist: (
+    system: System,
+    action: System["dailyActions"][number],
+    date: string,
+    status: ActionStatus,
+    reflectionBody?: string,
+  ) => void;
+  onNamePersist: (view: TodaySystemView, name: string) => void;
+  onSchedulePersist: (
+    view: TodaySystemView,
+    cadence: string,
+    days: WeekdayKey[],
+  ) => void;
 };
 
-export function TodayTab({ systems, onSystemsChange }: TodayTabProps) {
+export function TodayTab({
+  systems,
+  onSystemsChange,
+  onStatusPersist,
+  onNamePersist,
+  onSchedulePersist,
+}: TodayTabProps) {
   const [selectedDate, setSelectedDate] = useState("");
   const [reflectionSystem, setReflectionSystem] = useState<TodaySystemView | null>(null);
   const [detailSystem, setDetailSystem] = useState<TodaySystemView | null>(null);
@@ -66,13 +85,29 @@ export function TodayTab({ systems, onSystemsChange }: TodayTabProps) {
   }, []);
 
   const updateSystemStatus = useCallback((systemId: string, status: ActionStatus, reflectionBody = "") => {
+    const sourceSystem = systems.find((system) =>
+      system.dailyActions.some((action) => action.id === systemId),
+    );
+    const sourceAction = sourceSystem?.dailyActions.find(
+      (action) => action.id === systemId,
+    );
+    const actionDate = selectedDate || toDateKey(new Date());
+    if (sourceSystem && sourceAction) {
+      onStatusPersist(
+        sourceSystem,
+        sourceAction,
+        actionDate,
+        status,
+        reflectionBody,
+      );
+    }
+
     onSystemsChange((current) =>
       current.map((system): System => {
         const action = system.dailyActions.find((item) => item.id === systemId);
         if (!action) return system;
 
         const now = new Date().toISOString();
-        const actionDate = selectedDate || toDateKey(new Date());
         const actualAmount = status === "completed" ? action.plannedAmount : status === "missed" ? 0 : undefined;
         const withoutTodayLog = system.completionLogs.filter((log) => !(log.dailyActionId === action.id && log.date === actionDate));
         const nextLogs =
@@ -121,9 +156,10 @@ export function TodayTab({ systems, onSystemsChange }: TodayTabProps) {
         };
       }),
     );
-  }, [onSystemsChange, selectedDate]);
+  }, [onStatusPersist, onSystemsChange, selectedDate, systems]);
 
   const renameDetailSystem = useCallback((view: TodaySystemView, name: string) => {
+    onNamePersist(view, name);
     onSystemsChange((current) =>
       current.map((system): System => {
         if (system.id !== view.systemId) return system;
@@ -141,10 +177,11 @@ export function TodayTab({ systems, onSystemsChange }: TodayTabProps) {
       }),
     );
     setDetailSystem((current) => (current?.id === view.id ? { ...current, name } : current));
-  }, [onSystemsChange]);
+  }, [onNamePersist, onSystemsChange]);
 
   const updateDetailSchedule = useCallback((view: TodaySystemView, days: WeekdayKey[]) => {
     const nextCadence = cadenceFromDays(days);
+    onSchedulePersist(view, nextCadence, days);
 
     onSystemsChange((current) =>
       current.map((system): System => {
@@ -167,7 +204,7 @@ export function TodayTab({ systems, onSystemsChange }: TodayTabProps) {
       }),
     );
     setDetailSystem((current) => (current?.id === view.id ? { ...current, cadence: nextCadence, scheduleDays: days } : current));
-  }, [onSystemsChange]);
+  }, [onSchedulePersist, onSystemsChange]);
 
   return (
     <div className="space-y-5">

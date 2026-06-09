@@ -68,6 +68,30 @@ export async function getSystems(): Promise<SystemRow[]> {
   return data;
 }
 
+export async function getRoutines(): Promise<RoutineRow[]> {
+  const userId = await requireUserId();
+  const { data, error } = await getSupabaseClient()
+    .from("routines")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getGoals(): Promise<GoalRow[]> {
+  const userId = await requireUserId();
+  const { data, error } = await getSupabaseClient()
+    .from("goals")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
 export async function createSystem(
   input: CreateSystemInput,
 ): Promise<SystemRow> {
@@ -208,6 +232,72 @@ export async function createCompletionLog(
 
   if (error) throw error;
   return data;
+}
+
+export async function saveCompletionLog(
+  input: CreateCompletionLogInput,
+): Promise<CompletionLogRow> {
+  const userId = await requireUserId();
+  const client = getSupabaseClient();
+  let query = client
+    .from("completion_logs")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("system_id", input.system_id)
+    .eq("occurred_on", input.occurred_on);
+
+  query = input.daily_action_id
+    ? query.eq("daily_action_id", input.daily_action_id)
+    : input.routine_id
+      ? query.eq("routine_id", input.routine_id)
+      : input.goal_id
+        ? query.eq("goal_id", input.goal_id)
+        : query.is("daily_action_id", null).is("routine_id", null).is("goal_id", null);
+
+  const { data: existing, error: findError } = await query.maybeSingle();
+  if (findError) throw findError;
+
+  if (existing) {
+    const { data, error } = await client
+      .from("completion_logs")
+      .update(input)
+      .eq("id", existing.id)
+      .eq("user_id", userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  return createCompletionLog(input);
+}
+
+export async function deleteCompletionLog(input: {
+  system_id: string;
+  occurred_on: string;
+  daily_action_id?: string | null;
+  routine_id?: string | null;
+  goal_id?: string | null;
+}): Promise<void> {
+  const userId = await requireUserId();
+  let query = getSupabaseClient()
+    .from("completion_logs")
+    .delete()
+    .eq("user_id", userId)
+    .eq("system_id", input.system_id)
+    .eq("occurred_on", input.occurred_on);
+
+  query = input.daily_action_id
+    ? query.eq("daily_action_id", input.daily_action_id)
+    : input.routine_id
+      ? query.eq("routine_id", input.routine_id)
+      : input.goal_id
+        ? query.eq("goal_id", input.goal_id)
+        : query.is("daily_action_id", null).is("routine_id", null).is("goal_id", null);
+
+  const { error } = await query;
+  if (error) throw error;
 }
 
 export async function getCompletionLogs(): Promise<CompletionLogRow[]> {

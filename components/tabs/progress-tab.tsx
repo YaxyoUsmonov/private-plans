@@ -22,7 +22,7 @@ import { ProgressSystemDetailSheet } from "@/components/systems/progress-system-
 import { SystemDetailSheet } from "@/components/systems/system-detail-sheet";
 import { DetailPanel, PanelEmptyState } from "@/components/ui/detail-panel";
 import { DetailTabNavigator } from "@/components/ui/detail-tab-navigator";
-import { applyCreationPayload, iconRegistry, toRoutineDetailView, toSystemListViews, type CreateSystemPayload, type System, type SystemListView } from "@/lib/mock-data";
+import { iconRegistry, toRoutineDetailView, toSystemListViews, type CreateSystemPayload, type System, type SystemListView } from "@/lib/mock-data";
 import { sheetSpring } from "@/lib/motion";
 import { uz } from "@/lib/uz";
 
@@ -54,9 +54,18 @@ const systemDetailPages = ["Tizimlar", "Odatlar", "Maqsadlar"] as const;
 type ProgressTabProps = {
   systems: System[];
   onSystemsChange: React.Dispatch<React.SetStateAction<System[]>>;
+  onCreate: (payload: CreateSystemPayload) => void;
+  onSystemChangePersist: (systemId: string, changes: Partial<System>) => void;
+  onSystemDeletePersist: (systemId: string) => void;
 };
 
-export function ProgressTab({ systems, onSystemsChange }: ProgressTabProps) {
+export function ProgressTab({
+  systems,
+  onSystemsChange,
+  onCreate,
+  onSystemChangePersist,
+  onSystemDeletePersist,
+}: ProgressTabProps) {
   const [activeSection, setActiveSection] = useState<ProgressSectionKey | null>(null);
   const activeMeta = progressSections.find((section) => section.key === activeSection) ?? null;
   const systemViews = toSystemListViews(systems);
@@ -100,7 +109,16 @@ export function ProgressTab({ systems, onSystemsChange }: ProgressTabProps) {
         mode="drawer"
         onClose={() => setActiveSection(null)}
       >
-        {activeMeta?.key === "systems-list" ? <ProgressSystemsDetail systems={systems} systemViews={systemViews} onSystemsChange={onSystemsChange} /> : null}
+        {activeMeta?.key === "systems-list" ? (
+          <ProgressSystemsDetail
+            systems={systems}
+            systemViews={systemViews}
+            onSystemsChange={onSystemsChange}
+            onCreate={onCreate}
+            onSystemChangePersist={onSystemChangePersist}
+            onSystemDeletePersist={onSystemDeletePersist}
+          />
+        ) : null}
         {activeMeta?.key === "ai" ? <AiCoachDetail /> : null}
         {activeMeta?.key === "weekly" ? <WeeklyReviewDetail systems={systems} /> : null}
         {activeMeta?.key === "snapshot" ? <GrowthSnapshotDetail systems={systems} /> : null}
@@ -118,10 +136,16 @@ function ProgressSystemsDetail({
   systems,
   systemViews,
   onSystemsChange,
+  onCreate,
+  onSystemChangePersist,
+  onSystemDeletePersist,
 }: {
   systems: System[];
   systemViews: SystemListView[];
   onSystemsChange: React.Dispatch<React.SetStateAction<System[]>>;
+  onCreate: (payload: CreateSystemPayload) => void;
+  onSystemChangePersist: (systemId: string, changes: Partial<System>) => void;
+  onSystemDeletePersist: (systemId: string) => void;
 }) {
   const [pageIndex, setPageIndex] = useState(0);
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null);
@@ -205,6 +229,7 @@ function ProgressSystemsDetail({
 
   const updateSelectedSystem = useCallback(
     (systemId: string, changes: Partial<System>) => {
+      onSystemChangePersist(systemId, changes);
       onSystemsChange((current) =>
         current.map((system): System =>
           system.id === systemId
@@ -216,22 +241,23 @@ function ProgressSystemsDetail({
         ),
       );
     },
-    [onSystemsChange],
+    [onSystemChangePersist, onSystemsChange],
   );
 
   const deleteSelectedSystem = useCallback(
     (systemId: string) => {
+      onSystemDeletePersist(systemId);
       onSystemsChange((current) => current.filter((system) => system.id !== systemId));
       setSelectedSystemId(null);
     },
-    [onSystemsChange],
+    [onSystemDeletePersist, onSystemsChange],
   );
 
   const createHabitForSelectedSystem = useCallback(
     (payload: CreateSystemPayload) => {
-      onSystemsChange((current) => applyCreationPayload(current, payload));
+      onCreate(payload);
     },
-    [onSystemsChange],
+    [onCreate],
   );
 
   const requestAddHabit = useCallback((systemId: string) => {
