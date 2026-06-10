@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Archive, Bell, Calendar, Check, ChevronLeft, ChevronRight, Copy, Download, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Archive, Bell, Calendar, Check, ChevronLeft, ChevronRight, Copy, Download, Layers3, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { DetailTabNavigator } from "@/components/ui/detail-tab-navigator";
+import { GoalDetailSheet } from "@/components/systems/goal-detail-sheet";
+import { DetailSettingsAction, DetailSettingsGroup, DetailSettingsRow } from "@/components/systems/detail-settings-ui";
 import { isTodaySystemViewScheduledOnDate, type CompletionLog, type TodaySystemView, type WeekdayKey } from "@/lib/mock-data";
 import { sheetSpring } from "@/lib/motion";
 import { useBottomSheetDrag } from "@/components/ui/use-bottom-sheet-drag";
@@ -58,14 +60,23 @@ export function SystemDetailSheet({
   return (
     <AnimatePresence onExitComplete={onExitComplete}>
       {system ? (
-        <SystemDetailSheetContent
-          key={system.id}
-          system={system}
-          onClose={onClose}
-          onStatusChange={onStatusChange}
-          onRename={onRename}
-          onScheduleChange={onScheduleChange}
-        />
+        system.goalId && system.goal ? (
+          <GoalDetailSheet
+            key={system.id}
+            system={system}
+            onClose={onClose}
+            onRename={onRename}
+          />
+        ) : (
+          <SystemDetailSheetContent
+            key={system.id}
+            system={system}
+            onClose={onClose}
+            onStatusChange={onStatusChange}
+            onRename={onRename}
+            onScheduleChange={onScheduleChange}
+          />
+        )
       ) : null}
     </AnimatePresence>
   );
@@ -328,7 +339,7 @@ function DiagramPage({
   onCalendarDateSelect: (date: string) => void;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <MonthlyStatusCalendar
         system={system}
         month={calendarMonth}
@@ -560,7 +571,7 @@ function HistoryPage({ logs }: { logs: TodaySystemView["completionLogs"] }) {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-5">
       {logs
         .slice()
         .reverse()
@@ -592,7 +603,7 @@ function ReflectionsPage({ reflections, logs }: { reflections: TodaySystemView["
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-5">
       {autoMissedLogs
         .slice()
         .reverse()
@@ -633,54 +644,58 @@ function SettingsPage({
   const isContainerSystem = system.id === system.systemId;
 
   return (
-    <div className="space-y-4">
-      <section className="overflow-hidden rounded-[22px] border border-violet-200/10 bg-white/[0.035]">
-        <EditableNameRow system={system} onRename={onRename} />
-      </section>
-
-      {!isContainerSystem ? <LinkedSystemCard system={system} /> : null}
-
+    <div className="space-y-5">
       {isContainerSystem ? (
         <>
+          <section className="overflow-hidden rounded-[22px] border border-violet-200/10 bg-white/[0.035]">
+            <EditableNameRow system={system} onRename={onRename} />
+          </section>
           <SystemChildrenSection title="Odatlar" items={system.routines} actionLabel="+ Odat qo‘shish" />
           <SystemChildrenSection title="Maqsadlar" items={system.goals} actionLabel="+ Maqsad qo‘shish" />
         </>
       ) : (
-        <section className="overflow-hidden rounded-[22px] border border-violet-200/10 bg-white/[0.035]">
-          <SettingsRow icon={Calendar} label="Boshlanish sanasi" value={system.startDate || "O‘rnatilmagan"} />
-          <SettingsRow icon={Check} label="Kerak" value={formatScheduleValue(system)} onClick={onScheduleOpen} />
-          <SettingsRow icon={Bell} label="Eslatma" value="O‘rnatilmagan" />
-        </section>
+        <>
+          <DetailSettingsGroup title="Asosiy ma’lumot">
+            <EditableNameRow system={system} onRename={onRename} />
+            <DetailSettingsRow
+              icon={Layers3}
+              label="Tizim"
+              value={system.systemName || "Tizim ulanmagan"}
+            />
+          </DetailSettingsGroup>
+
+          <DetailSettingsGroup title="Jadval">
+            <DetailSettingsRow
+              icon={Calendar}
+              label="Boshlanish sanasi"
+              value={system.startDate || "O‘rnatilmagan"}
+            />
+            <DetailSettingsRow
+              icon={Check}
+              label="Kerak / Takrorlanish"
+              value={formatScheduleValue(system)}
+              onClick={onScheduleOpen}
+            />
+            <DetailSettingsRow
+              icon={Bell}
+              label="Eslatma"
+              value={system.reminderTime || "O‘rnatilmagan"}
+            />
+          </DetailSettingsGroup>
+        </>
       )}
 
-      <section className="overflow-hidden rounded-[22px] border border-violet-200/10 bg-white/[0.035]">
-        <ActionRow icon={RotateCcw} label="Boshqattan boshlash" />
-        <ActionRow icon={Download} label="Ma’lumotlarni eksport qilish" />
-        <ActionRow icon={Archive} label="Arxivga qo‘shish" />
-        <ActionRow icon={Copy} label="Dublikat qilish" />
-        <ActionRow icon={Trash2} label="O‘chirish" danger />
-      </section>
+      <DetailSettingsGroup title="Amallar">
+        {!isContainerSystem ? <DetailSettingsAction icon={RotateCcw} label="Boshqattan boshlash" /> : null}
+        <DetailSettingsAction icon={Download} label="Ma’lumotlarni eksport qilish" />
+        <DetailSettingsAction icon={Archive} label="Arxivga qo‘shish" />
+        <DetailSettingsAction icon={Copy} label="Dublikat qilish" />
+      </DetailSettingsGroup>
+
+      <DetailSettingsGroup title="Xavfli zona" danger>
+        <DetailSettingsAction icon={Trash2} label="O‘chirish" danger />
+      </DetailSettingsGroup>
     </div>
-  );
-}
-
-function LinkedSystemCard({ system }: { system: TodaySystemView }) {
-  const SystemIcon = system.systemIcon;
-
-  return (
-    <section className="overflow-hidden rounded-[22px] border border-violet-200/10 bg-white/[0.035]">
-      <div className="flex min-h-14 items-center gap-3 px-3.5 py-3">
-        {SystemIcon ? (
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center text-violet-100/72">
-            <SystemIcon size={25} strokeWidth={1.9} />
-          </span>
-        ) : null}
-        <span className="min-w-0 flex-1 text-sm font-black text-white">Tizim</span>
-        <span className="max-w-[52%] truncate text-right text-base font-black text-[#25EB2F]/60">
-          {system.systemName || "Tizim ulanmagan"}
-        </span>
-      </div>
-    </section>
   );
 }
 
@@ -722,71 +737,6 @@ function SystemChildrenSection({
         <p className="px-3.5 py-4 text-sm font-semibold text-slate-500">Hali {title.toLowerCase()} qo‘shilmagan.</p>
       )}
     </section>
-  );
-}
-
-function SettingsRow({
-  icon: Icon,
-  label,
-  value,
-  important = false,
-  onClick,
-}: {
-  icon: typeof Calendar;
-  label: string;
-  value: string;
-  important?: boolean;
-  onClick?: () => void;
-}) {
-  const content = (
-    <>
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center text-violet-100/72">
-        <Icon size={25} strokeWidth={1.9} />
-      </span>
-      <span className="min-w-0 flex-1 text-sm font-black text-white">{label}</span>
-      <span
-        className={`max-w-[48%] truncate text-right font-black text-[#25EB2F]/60 ${
-          important ? "text-base" : "text-sm"
-        }`}
-      >
-        {value}
-      </span>
-    </>
-  );
-
-  if (onClick) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex min-h-12 w-full items-center gap-3 border-b border-white/[0.055] px-3.5 py-2.5 text-left last:border-b-0"
-      >
-        {content}
-      </button>
-    );
-  }
-
-  return (
-    <div className="flex min-h-12 items-center gap-3 border-b border-white/[0.055] px-3.5 py-2.5 last:border-b-0">
-      {content}
-    </div>
-  );
-}
-
-function ActionRow({ icon: Icon, label, danger = false }: { icon: typeof Calendar; label: string; danger?: boolean }) {
-  return (
-    <button
-      type="button"
-      disabled
-      className="flex min-h-12 w-full items-center gap-3 border-b border-white/[0.055] px-3.5 py-2.5 text-left last:border-b-0 disabled:cursor-not-allowed"
-    >
-      <span className={danger ? "flex h-8 w-8 shrink-0 items-center justify-center text-[#FF3B30]" : "flex h-8 w-8 shrink-0 items-center justify-center text-violet-100/72"}>
-        <Icon size={24} strokeWidth={1.9} className={danger ? "icon-tone-danger" : undefined} />
-      </span>
-      <span className={danger ? "min-w-0 flex-1 text-sm font-black text-[#FF3B30]" : "min-w-0 flex-1 text-sm font-black text-white"}>
-        {label}
-      </span>
-    </button>
   );
 }
 
@@ -904,8 +854,12 @@ function EditableNameRow({ system, onRename }: { system: TodaySystemView; onRena
           setEditing(true);
         }
       }}
-      className="flex min-h-12 cursor-pointer items-center justify-center px-3.5 py-2.5 text-center"
+      className="flex min-h-14 cursor-pointer items-center gap-3 border-b border-white/[0.06] px-4 py-3 text-left last:border-b-0"
     >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center text-violet-100/72">
+        <Pencil size={20} strokeWidth={1.9} />
+      </span>
+      <span className="min-w-0 flex-1 text-sm font-black text-white">Nomi</span>
       {editing ? (
         <input
           autoFocus
@@ -919,10 +873,10 @@ function EditableNameRow({ system, onRename }: { system: TodaySystemView; onRena
               setEditing(false);
             }
           }}
-          className="min-w-0 max-w-[88%] rounded-2xl border border-violet-200/12 bg-[#0B1023]/72 px-3 py-1.5 text-center text-base font-black text-white outline-none focus:border-violet-300/30"
+          className="min-h-9 min-w-0 max-w-[48%] rounded-xl border border-violet-200/12 bg-[#0B1023]/72 px-2.5 text-right text-sm font-bold text-white outline-none focus:border-violet-300/30"
         />
       ) : (
-        <span className="max-w-[88%] truncate rounded-2xl px-2 py-1 text-center text-base font-black text-white transition">
+        <span className="max-w-[48%] truncate text-right text-sm font-bold text-slate-400">
           {system.name}
         </span>
       )}

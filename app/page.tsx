@@ -13,6 +13,7 @@ import {
   persistCreation,
   persistEntityName,
   persistEntitySchedule,
+  persistGoalProgress,
   persistSystemChanges,
   persistSystemDelete,
 } from "@/lib/plans-data";
@@ -115,6 +116,18 @@ function PlansApp() {
     [refreshSystems],
   );
 
+  const handleGoalProgressPersist = useCallback(
+    (goalId: string, currentAmount: number) => {
+      void persistGoalProgress(goalId, currentAmount)
+        .then(refreshSystems)
+        .catch((error) => {
+          console.error("[Plans] Maqsad progressi Supabase'da yangilanmadi:", error);
+          void refreshSystems();
+        });
+    },
+    [refreshSystems],
+  );
+
   const handleSystemChangePersist = useCallback(
     (systemId: string, changes: Partial<System>) => {
       void persistSystemChanges(systemId, changes).then(refreshSystems).catch((error) => {
@@ -145,6 +158,7 @@ function PlansApp() {
             onStatusPersist={handleStatusPersist}
             onNamePersist={handleNamePersist}
             onSchedulePersist={handleSchedulePersist}
+            onGoalProgressPersist={handleGoalProgressPersist}
           />
         ) : null}
         {activeTab === "progress" ? (

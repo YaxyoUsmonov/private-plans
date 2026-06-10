@@ -104,6 +104,7 @@ const icons = [
 
 const guidedStepTitles = [uz.create.chooseType, uz.create.nameIt, uz.create.setRhythm, uz.create.confirm];
 const systemStepTitles = [uz.create.chooseType, "Tizim ma’lumotlari", uz.create.confirm];
+const goalStepTitles = [uz.create.chooseType, "Maqsad ma’lumotlari", uz.create.confirm];
 const habitScheduleOptions = [
   "Har kuni",
   "Du / Chor / Jum",
@@ -159,18 +160,32 @@ export function CreateSystemFlow({
   const [habitSchedule, setHabitSchedule] = useState(habitScheduleOptions[0]);
   const [habitSelectedWeekdays, setHabitSelectedWeekdays] = useState<WeekdayKey[]>([]);
   const [habitReminderTime, setHabitReminderTime] = useState("");
+  const [goalCurrentValue, setGoalCurrentValue] = useState("");
+  const [goalTargetValue, setGoalTargetValue] = useState("");
+  const [goalUnit, setGoalUnit] = useState("");
+  const [goalDeadline, setGoalDeadline] = useState("");
   const [targetSystemId, setTargetSystemId] = useState(
     () => existingSystemId ?? systems.find((system) => system.status === "Faol")?.id ?? systems[0]?.id ?? "",
   );
 
   const activeType = creationTypes.find((item) => item.id === creationType) ?? creationTypes[0];
   const isSystemFlow = creationType === "system";
-  const stepTitles = isSystemFlow ? systemStepTitles : guidedStepTitles;
+  const isGoalFlow = creationType === "goal";
+  const stepTitles = isSystemFlow ? systemStepTitles : isGoalFlow ? goalStepTitles : guidedStepTitles;
+  const parsedGoalCurrentValue = goalCurrentValue.trim() ? Number(goalCurrentValue) : 0;
+  const parsedGoalTargetValue = Number(goalTargetValue);
+  const goalValuesAreValid =
+    Number.isFinite(parsedGoalCurrentValue) &&
+    Number.isFinite(parsedGoalTargetValue) &&
+    parsedGoalTargetValue > 0;
   const canContinue =
     creationType !== null &&
     (step !== 1 || name.trim().length > 0) &&
     (creationType !== "habit" || step !== 1 || targetSystemId.length > 0) &&
-    (isSystemFlow || step !== 2 || !isWeeklySchedule(schedule) || selectedWeekdays.length > 0);
+    (!isGoalFlow ||
+      step !== 1 ||
+      (targetSystemId.length > 0 && goalUnit.trim().length > 0 && goalValuesAreValid)) &&
+    (creationType !== "habit" || step !== 2 || !isWeeklySchedule(schedule) || selectedWeekdays.length > 0);
   const primaryLabel = created ? uz.common.close : step === stepTitles.length - 1 ? uz.common.create : uz.common.continue;
   const attachingHabit =
     creationMode === "attach-to-draft-system" ||
@@ -186,6 +201,10 @@ export function CreateSystemFlow({
     setCreationType(null);
     setCreationMode(mode);
     setSystemHabitDrafts([]);
+    setGoalCurrentValue("");
+    setGoalTargetValue("");
+    setGoalUnit("");
+    setGoalDeadline("");
     resetHabitDraft();
   };
 
@@ -271,6 +290,19 @@ export function CreateSystemFlow({
         iconName: selectedIcon,
         accent: accentColors.find((item) => item.name === accent)?.color ?? accentColors[0].color,
         draftRoutines: systemHabitDrafts,
+      });
+    } else if (isGoalFlow) {
+      onCreate({
+        type: "goal",
+        name: name.trim(),
+        description: description.trim() || undefined,
+        iconName: "target",
+        accent: "#7F00FF",
+        currentValue: parsedGoalCurrentValue,
+        targetAmount: parsedGoalTargetValue,
+        unit: goalUnit.trim(),
+        deadline: goalDeadline || undefined,
+        targetSystemId: targetSystemId || undefined,
       });
     } else {
       onCreate({
@@ -407,7 +439,7 @@ export function CreateSystemFlow({
                     onAddHabit={() => setCreationMode("attach-to-draft-system")}
                   />
                 ) : null}
-                {step === 1 && creationType !== null && !isSystemFlow ? (
+                {step === 1 && creationType === "habit" ? (
                   <StepIntention
                     creationType={creationType}
                     systems={systems}
@@ -427,7 +459,27 @@ export function CreateSystemFlow({
                     onTargetSystemChange={setTargetSystemId}
                   />
                 ) : null}
-                {step === 2 && !isSystemFlow ? (
+                {step === 1 && isGoalFlow ? (
+                  <GoalEditor
+                    systems={systems}
+                    targetSystemId={targetSystemId}
+                    hideSystemSelect={Boolean(existingSystemId)}
+                    name={name}
+                    currentValue={goalCurrentValue}
+                    targetValue={goalTargetValue}
+                    unit={goalUnit}
+                    deadline={goalDeadline}
+                    description={description}
+                    onTargetSystemChange={setTargetSystemId}
+                    onNameChange={setName}
+                    onCurrentValueChange={setGoalCurrentValue}
+                    onTargetValueChange={setGoalTargetValue}
+                    onUnitChange={setGoalUnit}
+                    onDeadlineChange={setGoalDeadline}
+                    onDescriptionChange={setDescription}
+                  />
+                ) : null}
+                {step === 2 && creationType === "habit" ? (
                   <StepRhythm
                     schedule={schedule}
                     selectedWeekdays={selectedWeekdays}
@@ -448,7 +500,18 @@ export function CreateSystemFlow({
                     habits={systemHabitDrafts}
                   />
                 ) : null}
-                {step === 3 && !isSystemFlow ? (
+                {step === 2 && isGoalFlow ? (
+                  <GoalConfirm
+                    systemName={systems.find((system) => system.id === targetSystemId)?.title ?? ""}
+                    name={name}
+                    currentValue={parsedGoalCurrentValue}
+                    targetValue={parsedGoalTargetValue}
+                    unit={goalUnit}
+                    deadline={goalDeadline}
+                    description={description}
+                  />
+                ) : null}
+                {step === 3 && creationType === "habit" ? (
                   <StepConfirm
                     type={activeType.title}
                     name={name}
@@ -982,6 +1045,182 @@ function StepIntention({
           placeholder={uz.create.descriptionPlaceholder}
         />
       </Field>
+    </div>
+  );
+}
+
+function GoalEditor({
+  systems,
+  targetSystemId,
+  hideSystemSelect,
+  name,
+  currentValue,
+  targetValue,
+  unit,
+  deadline,
+  description,
+  onTargetSystemChange,
+  onNameChange,
+  onCurrentValueChange,
+  onTargetValueChange,
+  onUnitChange,
+  onDeadlineChange,
+  onDescriptionChange,
+}: {
+  systems: System[];
+  targetSystemId: string;
+  hideSystemSelect: boolean;
+  name: string;
+  currentValue: string;
+  targetValue: string;
+  unit: string;
+  deadline: string;
+  description: string;
+  onTargetSystemChange: (value: string) => void;
+  onNameChange: (value: string) => void;
+  onCurrentValueChange: (value: string) => void;
+  onTargetValueChange: (value: string) => void;
+  onUnitChange: (value: string) => void;
+  onDeadlineChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+}) {
+  const inputClass =
+    "min-h-12 w-full rounded-[20px] border border-violet-200/10 bg-white/[0.04] px-4 text-sm font-bold text-white outline-none transition duration-300 placeholder:text-slate-600 focus:border-violet-200/24 focus:bg-violet-400/[0.06]";
+
+  return (
+    <div className="space-y-5">
+      <StepIntro
+        title="Aniq natijani belgilang"
+        description="Maqsadni boshlang‘ich holat, yakuniy qiymat va ixtiyoriy deadline bilan yarating."
+      />
+
+      <Field label="Maqsad nomi *">
+        <input
+          value={name}
+          onChange={(event) => onNameChange(event.target.value)}
+          className={inputClass}
+          placeholder="Masalan: IELTS 7.0 olish"
+          autoFocus
+        />
+      </Field>
+
+      {!hideSystemSelect ? (
+        <Field label="Tizim *">
+          {systems.length ? (
+            <div className="flex flex-wrap gap-2">
+              {systems.map((system) => (
+                <SelectChip
+                  key={system.id}
+                  selected={targetSystemId === system.id}
+                  onClick={() => onTargetSystemChange(system.id)}
+                >
+                  {system.title}
+                </SelectChip>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-[20px] border border-violet-200/10 bg-white/[0.035] px-4 py-3 text-sm font-semibold text-slate-500">
+              Avval tizim yarating
+            </p>
+          )}
+        </Field>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Boshlang‘ich qiymat">
+          <input
+            value={currentValue}
+            onChange={(event) => onCurrentValueChange(event.target.value)}
+            inputMode="decimal"
+            className={inputClass}
+            placeholder="0"
+          />
+        </Field>
+        <Field label="Maqsad qiymati *">
+          <input
+            value={targetValue}
+            onChange={(event) => onTargetValueChange(event.target.value)}
+            inputMode="decimal"
+            className={inputClass}
+            placeholder="100"
+          />
+        </Field>
+      </div>
+
+      <Field label="Birlik *">
+        <input
+          value={unit}
+          onChange={(event) => onUnitChange(event.target.value)}
+          className={inputClass}
+          placeholder="ta, so‘z, sahifa, kg, $, ball, kun"
+        />
+      </Field>
+
+      <Field label="Deadline — optional">
+        <input
+          value={deadline}
+          onChange={(event) => onDeadlineChange(event.target.value)}
+          type="date"
+          className={inputClass}
+        />
+      </Field>
+
+      <Field label="Qisqa izoh — optional">
+        <textarea
+          value={description}
+          onChange={(event) => onDescriptionChange(event.target.value)}
+          className="min-h-24 w-full resize-none rounded-[22px] border border-violet-200/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold leading-6 text-white outline-none transition duration-300 placeholder:text-slate-600 focus:border-violet-200/24 focus:bg-violet-400/[0.06]"
+          placeholder="Bu maqsad nima uchun muhim?"
+        />
+      </Field>
+    </div>
+  );
+}
+
+function GoalConfirm({
+  systemName,
+  name,
+  currentValue,
+  targetValue,
+  unit,
+  deadline,
+  description,
+}: {
+  systemName: string;
+  name: string;
+  currentValue: number;
+  targetValue: number;
+  unit: string;
+  deadline: string;
+  description: string;
+}) {
+  const rows = [
+    ["Maqsad", name],
+    ["Tizim", systemName],
+    ["Boshlang‘ich qiymat", `${currentValue} ${unit}`],
+    ["Maqsad qiymati", `${targetValue} ${unit}`],
+    ["Deadline", deadline || "Belgilanmagan"],
+  ];
+
+  return (
+    <div className="space-y-5">
+      <StepIntro title="Maqsad tayyor" description="Natija ma’lumotlarini tekshiring va maqsadni yarating." />
+      <section className="rounded-[24px] border border-violet-200/10 bg-white/[0.035] p-4">
+        <div className="space-y-2">
+          {rows.map(([label, value]) => (
+            <div key={label} className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2 last:border-b-0">
+              <span className="text-xs font-bold text-slate-500">{label}</span>
+              <span className="max-w-[58%] truncate text-right text-xs font-black text-white">{value}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+      {description.trim() ? (
+        <section className="rounded-[22px] border border-violet-200/10 bg-white/[0.03] p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100/60">Qisqa izoh</p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-300">{description}</p>
+        </section>
+      ) : null}
     </div>
   );
 }

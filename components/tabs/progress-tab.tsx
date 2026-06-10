@@ -22,7 +22,7 @@ import { ProgressSystemDetailSheet } from "@/components/systems/progress-system-
 import { SystemDetailSheet } from "@/components/systems/system-detail-sheet";
 import { DetailPanel, PanelEmptyState } from "@/components/ui/detail-panel";
 import { DetailTabNavigator } from "@/components/ui/detail-tab-navigator";
-import { iconRegistry, toRoutineDetailView, toSystemListViews, type CreateSystemPayload, type System, type SystemListView } from "@/lib/mock-data";
+import { iconRegistry, toGoalDetailView, toRoutineDetailView, toSystemListViews, type CreateSystemPayload, type System, type SystemListView } from "@/lib/mock-data";
 import { sheetSpring } from "@/lib/motion";
 import { uz } from "@/lib/uz";
 
@@ -151,8 +151,11 @@ function ProgressSystemsDetail({
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null);
   const [habitFlowSystemId, setHabitFlowSystemId] = useState<string | null>(null);
   const [routineDetail, setRoutineDetail] = useState<{ systemId: string; routineId: string } | null>(null);
+  const [goalDetail, setGoalDetail] = useState<{ systemId: string; goalId: string } | null>(null);
   const pendingHabitSystemRef = useRef<string | null>(null);
   const pendingRoutineRef = useRef<{ systemId: string; routineId: string } | null>(null);
+  const pendingGoalRef = useRef<{ systemId: string; goalId: string } | null>(null);
+  const goalReturnsToSystemRef = useRef(false);
   const pendingDetailSystemRef = useRef<string | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -165,6 +168,13 @@ function ProgressSystemsDetail({
   const routineDetailView =
     routineDetail && routineDetailSystem
       ? toRoutineDetailView(routineDetailSystem, routineDetail.routineId)
+      : null;
+  const goalDetailSystem = goalDetail
+    ? systems.find((system) => system.id === goalDetail.systemId) ?? null
+    : null;
+  const goalDetailView =
+    goalDetail && goalDetailSystem
+      ? toGoalDetailView(goalDetailSystem, goalDetail.goalId)
       : null;
 
   const goNext = useCallback(() => setPageIndex((current) => Math.min(systemDetailPages.length - 1, current + 1)), []);
@@ -270,11 +280,29 @@ function ProgressSystemsDetail({
     setSelectedSystemId(null);
   }, []);
 
+  const requestGoalDetail = useCallback((systemId: string, goalId: string) => {
+    goalReturnsToSystemRef.current = true;
+    pendingGoalRef.current = { systemId, goalId };
+    setSelectedSystemId(null);
+  }, []);
+
+  const openGoalFromList = useCallback((goal: { systemId: string; goalId: string }) => {
+    goalReturnsToSystemRef.current = false;
+    setGoalDetail(goal);
+  }, []);
+
   const handleDetailExitComplete = useCallback(() => {
     const routine = pendingRoutineRef.current;
     pendingRoutineRef.current = null;
     if (routine) {
       setRoutineDetail(routine);
+      return;
+    }
+
+    const goal = pendingGoalRef.current;
+    pendingGoalRef.current = null;
+    if (goal) {
+      setGoalDetail(goal);
       return;
     }
 
@@ -300,6 +328,14 @@ function ProgressSystemsDetail({
     pendingDetailSystemRef.current = routineDetail?.systemId ?? null;
     setRoutineDetail(null);
   }, [routineDetail]);
+
+  const closeGoalDetail = useCallback(() => {
+    pendingDetailSystemRef.current = goalReturnsToSystemRef.current
+      ? goalDetail?.systemId ?? null
+      : null;
+    goalReturnsToSystemRef.current = false;
+    setGoalDetail(null);
+  }, [goalDetail]);
 
   const handleRoutineExitComplete = useCallback(() => {
     const systemId = pendingDetailSystemRef.current;
@@ -331,7 +367,7 @@ function ProgressSystemsDetail({
             <SystemRoutinesPage systems={systems} />
           </SwipePage>
           <SwipePage>
-            <SystemGoalsPage systems={systems} />
+            <SystemGoalsPage systems={systems} onSelect={openGoalFromList} />
           </SwipePage>
         </motion.div>
       </div>
@@ -343,6 +379,7 @@ function ProgressSystemsDetail({
         onDelete={deleteSelectedSystem}
         onRequestAddHabit={requestAddHabit}
         onRequestHabitDetail={requestHabitDetail}
+        onRequestGoalDetail={requestGoalDetail}
         onExitComplete={handleDetailExitComplete}
       />
 
@@ -359,6 +396,12 @@ function ProgressSystemsDetail({
       <SystemDetailSheet
         system={routineDetailView}
         onClose={closeRoutineDetail}
+        onExitComplete={handleRoutineExitComplete}
+        onStatusChange={() => undefined}
+      />
+      <SystemDetailSheet
+        system={goalDetailView}
+        onClose={closeGoalDetail}
         onExitComplete={handleRoutineExitComplete}
         onStatusChange={() => undefined}
       />
@@ -430,7 +473,13 @@ function SystemRoutinesPage({ systems }: { systems: System[] }) {
   );
 }
 
-function SystemGoalsPage({ systems }: { systems: System[] }) {
+function SystemGoalsPage({
+  systems,
+  onSelect,
+}: {
+  systems: System[];
+  onSelect: (goal: { systemId: string; goalId: string }) => void;
+}) {
   const hasGoals = systems.some((system) => system.goals.length > 0);
 
   if (!hasGoals) {
@@ -446,6 +495,7 @@ function SystemGoalsPage({ systems }: { systems: System[] }) {
             {system.goals.map((goal) => (
               <CompactRow
                 key={goal.id}
+                onClick={() => onSelect({ systemId: system.id, goalId: goal.id })}
                 icon={<Target size={17} />}
                 title={goal.title}
                 subtitle={`${goal.current} / ${goal.target} ${goal.unit}`}
@@ -464,14 +514,16 @@ function CompactRow({
   title,
   subtitle,
   meta,
+  onClick,
 }: {
   icon: React.ReactNode;
   title: string;
   subtitle: string;
   meta?: string;
+  onClick?: () => void;
 }) {
-  return (
-    <div className="flex min-h-[68px] items-center gap-3 rounded-[22px] border border-violet-200/10 bg-white/[0.035] px-3 py-2.5">
+  const content = (
+    <>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-200/10 bg-violet-400/10 text-violet-100">
         {icon}
       </span>
@@ -484,6 +536,24 @@ function CompactRow({
           {meta}
         </span>
       ) : null}
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-h-[68px] w-full items-center gap-3 rounded-[22px] border border-violet-200/10 bg-white/[0.035] px-3 py-2.5 text-left transition active:scale-[0.99]"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex min-h-[68px] items-center gap-3 rounded-[22px] border border-violet-200/10 bg-white/[0.035] px-3 py-2.5">
+      {content}
     </div>
   );
 }

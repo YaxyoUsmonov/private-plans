@@ -5,6 +5,7 @@ import { LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { Zap } from "lucide-react";
 import { FocusModeModal } from "@/components/focus/focus-mode-modal";
 import { ReflectionModal } from "@/components/reflection/reflection-modal";
+import { GoalProgressSheet } from "@/components/goals/goal-progress-sheet";
 import { DateStrip } from "@/components/tabs/date-strip";
 import { SystemDetailSheet } from "@/components/systems/system-detail-sheet";
 import { SystemSection } from "@/components/systems/system-section";
@@ -28,6 +29,7 @@ type TodayTabProps = {
     cadence: string,
     days: WeekdayKey[],
   ) => void;
+  onGoalProgressPersist: (goalId: string, currentAmount: number) => void;
 };
 
 export function TodayTab({
@@ -36,16 +38,23 @@ export function TodayTab({
   onStatusPersist,
   onNamePersist,
   onSchedulePersist,
+  onGoalProgressPersist,
 }: TodayTabProps) {
   const [selectedDate, setSelectedDate] = useState("");
   const [reflectionSystem, setReflectionSystem] = useState<TodaySystemView | null>(null);
   const [detailSystem, setDetailSystem] = useState<TodaySystemView | null>(null);
+  const [progressGoal, setProgressGoal] = useState<TodaySystemView | null>(null);
   const [focusOpen, setFocusOpen] = useState(false);
   const [rowLayoutMotionReady, setRowLayoutMotionReady] = useState(false);
   const todaySystems = toTodaySystemViews(systems, selectedDate);
   const activeCount = todaySystems.length;
   const completedCount = todaySystems.filter((system) => system.today.status === "completed").length;
-  const pendingSystems = todaySystems.filter((system) => system.today.status === "planned");
+  const pendingSystems = todaySystems
+    .filter((system) => system.today.status === "planned")
+    .sort((left, right) => {
+      const order = { habit: 0, system: 1, goal: 2 };
+      return order[left.type] - order[right.type];
+    });
   const completedSystems = todaySystems.filter((system) => system.today.status === "completed");
   const missedSystems = todaySystems.filter((system) => system.today.status === "missed");
 
@@ -83,6 +92,32 @@ export function TodayTab({
   const handleDateSelect = useCallback((date: string) => {
     setSelectedDate(date);
   }, []);
+
+  const handleOpenItem = useCallback((view: TodaySystemView) => {
+    setDetailSystem(view);
+  }, []);
+
+  const updateGoalProgress = useCallback(
+    (view: TodaySystemView, currentAmount: number) => {
+      if (!view.goalId) return;
+
+      onSystemsChange((current) =>
+        current.map((system) =>
+          system.id === view.systemId
+            ? {
+                ...system,
+                goals: system.goals.map((goal) =>
+                  goal.id === view.goalId ? { ...goal, current: currentAmount } : goal,
+                ),
+              }
+            : system,
+        ),
+      );
+      onGoalProgressPersist(view.goalId, currentAmount);
+      setProgressGoal(null);
+    },
+    [onGoalProgressPersist, onSystemsChange],
+  );
 
   const updateSystemStatus = useCallback((systemId: string, status: ActionStatus, reflectionBody = "") => {
     const sourceSystem = systems.find((system) =>
@@ -236,7 +271,8 @@ export function TodayTab({
                 systems={pendingSystems}
                 enableRowLayoutAnimation={rowLayoutMotionReady}
                 onSwipeReflect={setReflectionSystem}
-                onOpenDetails={setDetailSystem}
+                onSwipeGoalProgress={setProgressGoal}
+                onOpenDetails={handleOpenItem}
               />
             ) : (
               <>
@@ -247,7 +283,8 @@ export function TodayTab({
                     systems={pendingSystems}
                     enableRowLayoutAnimation={rowLayoutMotionReady}
                     onSwipeReflect={setReflectionSystem}
-                    onOpenDetails={setDetailSystem}
+                    onSwipeGoalProgress={setProgressGoal}
+                    onOpenDetails={handleOpenItem}
                   />
                 ) : null}
                 {completedSystems.length > 0 ? (
@@ -257,7 +294,7 @@ export function TodayTab({
                     systems={completedSystems}
                     enableRowLayoutAnimation={rowLayoutMotionReady}
                     onUndo={(system) => updateSystemStatus(system.id, "planned")}
-                    onOpenDetails={setDetailSystem}
+                    onOpenDetails={handleOpenItem}
                   />
                 ) : null}
                 {missedSystems.length > 0 ? (
@@ -266,7 +303,7 @@ export function TodayTab({
                     accent="missed"
                     systems={missedSystems}
                     enableRowLayoutAnimation={rowLayoutMotionReady}
-                    onOpenDetails={setDetailSystem}
+                    onOpenDetails={handleOpenItem}
                   />
                 ) : null}
               </>
@@ -283,6 +320,11 @@ export function TodayTab({
           updateSystemStatus(systemId, result === "completed" ? "completed" : "missed", reflectionBody);
           setReflectionSystem(null);
         }}
+      />
+      <GoalProgressSheet
+        goalView={progressGoal}
+        onClose={() => setProgressGoal(null)}
+        onSave={(view, value) => updateGoalProgress(view, value)}
       />
       <SystemDetailSheet
         system={detailSystem}

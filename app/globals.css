@@ -27,7 +27,7 @@
 
 :root {
   color-scheme: dark;
-  --background: #050816;
+  --background: #0F1427;
   --card: #11162A;
   --accent: #7F00FF;
   --accent-rgb: 127, 0, 255;
@@ -35,6 +35,10 @@
   --accent-light: #A855F7;
   --text: #FFFFFF;
   --foreground: #FFFFFF;
+  --border-purple: rgba(255, 255, 255, 0.06);
+  --border-purple-strong: rgba(255, 255, 255, 0.06);
+  --border-purple-active: rgba(127, 0, 255, 0.10);
+  --card-purple-shadow: none;
 }
 
 * {
@@ -57,6 +61,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+[class*="bg-[#050816]"],
 [class*="bg-[#0E1428]"] {
   background-color: var(--background);
 }
@@ -78,7 +83,13 @@ body {
   background-color: var(--accent-fill);
 }
 
-.plans-selected-purple,
+.plans-selected-purple {
+  border-color: var(--accent) !important;
+  background-color: var(--accent-fill) !important;
+  background-image: none !important;
+  color: var(--text);
+}
+
 .plans-focus-button {
   border-color: rgba(127, 0, 255, 0.25) !important;
   background-color: var(--accent-fill) !important;
@@ -94,9 +105,7 @@ button[class*="bg-violet-400/18"] {
   border-color: rgba(127, 0, 255, 0.25) !important;
   background-color: var(--accent-fill) !important;
   background-image: none !important;
-  box-shadow:
-    0 14px 42px rgba(0, 0, 0, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  box-shadow: none !important;
 }
 
 .plans-overlay,
@@ -105,6 +114,97 @@ button[class*="bg-violet-400/18"] {
   text-shadow: none !important;
   filter: none !important;
   backdrop-filter: none !important;
+}
+
+aside,
+[class*="rounded-t-[34px]"],
+section[class*="rounded-"][class*="border"],
+div[class*="rounded-"][class*="border"][class*="bg-"] {
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+}
+
+aside[class*="border-l"] {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+[class*="rounded-t-[34px]"][class*="border"],
+aside[class*="fixed"][class*="border"],
+section[class*="fixed"][class*="border"] {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+:where(
+  section[class*="rounded-"][class*="border"],
+  div[class*="rounded-"][class*="border"][class*="bg-"],
+  button[class*="rounded-"][class*="border"][class*="bg-white"]:not(.plans-focus-button),
+  input[class*="rounded-"][class*="border"],
+  textarea[class*="rounded-"][class*="border"],
+  select[class*="rounded-"][class*="border"]
+):not([class*="border-red"]):not([class*="border-rose"]):not([class*="border-green"]):not([class*="border-emerald"]):not([class*="border-orange"]):not([class*="border-amber"]):not([class*="border-yellow"]):not([class*="FF3B30"]):not([class*="25EB2F"]) {
+  border-color: var(--border-purple) !important;
+  box-shadow: var(--card-purple-shadow) !important;
+}
+
+:where(
+  section[class*="rounded-[24px]"][class*="border"],
+  section[class*="rounded-[26px]"][class*="border"],
+  section[class*="rounded-[28px]"][class*="border"],
+  div[class*="rounded-[24px]"][class*="border"][class*="bg-"],
+  div[class*="rounded-[26px]"][class*="border"][class*="bg-"],
+  div[class*="rounded-[28px]"][class*="border"][class*="bg-"]
+):not([class*="border-red"]):not([class*="border-rose"]):not([class*="border-green"]):not([class*="border-emerald"]):not([class*="border-orange"]):not([class*="border-amber"]):not([class*="border-yellow"]):not([class*="FF3B30"]):not([class*="25EB2F"]) {
+  border-color: var(--border-purple-strong) !important;
+}
+
+:where(
+  button[class*="rounded-"][class*="border"]:not(.plans-focus-button),
+  input[class*="rounded-"][class*="border"],
+  textarea[class*="rounded-"][class*="border"],
+  select[class*="rounded-"][class*="border"]
+):not([class*="border-red"]):not([class*="border-rose"]):not([class*="border-green"]):not([class*="border-emerald"]):not([class*="border-orange"]):not([class*="border-amber"]):not([class*="border-yellow"]):not([class*="FF3B30"]):not([class*="25EB2F"]):hover,
+:where(
+  button[class*="rounded-"][class*="border"]:not(.plans-focus-button),
+  input[class*="rounded-"][class*="border"],
+  textarea[class*="rounded-"][class*="border"],
+  select[class*="rounded-"][class*="border"]
+):not([class*="border-red"]):not([class*="border-rose"]):not([class*="border-green"]):not([class*="border-emerald"]):not([class*="border-orange"]):not([class*="border-amber"]):not([class*="border-yellow"]):not([class*="FF3B30"]):not([class*="25EB2F"]):focus,
+:where(
+  button[class*="rounded-"][class*="border"]:not(.plans-focus-button),
+  input[class*="rounded-"][class*="border"],
+  textarea[class*="rounded-"][class*="border"],
+  select[class*="rounded-"][class*="border"]
+):not([class*="border-red"]):not([class*="border-rose"]):not([class*="border-green"]):not([class*="border-emerald"]):not([class*="border-orange"]):not([class*="border-amber"]):not([class*="border-yellow"]):not([class*="FF3B30"]):not([class*="25EB2F"]):focus-visible,
+:where(
+  button[class*="rounded-"][class*="border"]:not(.plans-focus-button),
+  input[class*="rounded-"][class*="border"],
+  textarea[class*="rounded-"][class*="border"],
+  select[class*="rounded-"][class*="border"]
+):not([class*="border-red"]):not([class*="border-rose"]):not([class*="border-green"]):not([class*="border-emerald"]):not([class*="border-orange"]):not([class*="border-amber"]):not([class*="border-yellow"]):not([class*="FF3B30"]):not([class*="25EB2F"]):active {
+  border-color: var(--border-purple-active) !important;
+}
+
+/* Sheet/drawer perimeter stays neutral; inner cards keep their accent borders. */
+aside[class*="border-l"],
+[class*="rounded-t-[34px]"][class*="border"],
+aside[class*="fixed"][class*="border"],
+section[class*="fixed"][class*="border"] {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.35) !important;
+}
+
+.plans-selected-purple {
+  border-color: var(--accent) !important;
+  background-color: var(--accent-fill) !important;
+}
+
+.plans-focus-button,
+button[class*="bg-[#3A025B]"],
+button[class*="bg-violet-400/14"],
+button[class*="bg-violet-400/16"],
+button[class*="bg-violet-400/18"] {
+  box-shadow: none !important;
 }
 
 button {

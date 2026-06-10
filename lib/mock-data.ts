@@ -44,7 +44,9 @@ export type Goal = {
   target: number;
   unit: string;
   status: GoalStatus;
+  startDate?: string;
   deadline?: string;
+  createdAt?: string;
 };
 
 export type DailyAction = {
@@ -125,8 +127,10 @@ export type CreateSystemPayload = {
   accent: string;
   schedule?: string;
   reminderTime?: string;
+  currentValue?: number;
   targetAmount?: number;
   unit?: string;
+  deadline?: string;
   routines?: string[];
   draftRoutines?: CreateRoutineDraft[];
   targetSystemId?: string;
@@ -143,6 +147,7 @@ export type CreateRoutineDraft = {
 };
 
 export type TodaySystemView = {
+  type: "habit" | "goal" | "system";
   id: string;
   systemId: string;
   routineId?: string;
@@ -171,6 +176,7 @@ export type TodaySystemView = {
     current: number;
     target: number;
     unit: string;
+    deadline?: string;
   };
   today: {
     done: number;
@@ -294,6 +300,25 @@ function isSystemActive(system: System) {
   return normalized === "faol" || normalized === "active";
 }
 
+function datePart(value?: string) {
+  if (!value) return "";
+  if (value === "today") return toLocalDateKey(new Date());
+
+  const candidate = value.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : "";
+}
+
+function isGoalVisibleOnDate(goal: Goal, selectedDate: string, fallbackStartDate: string) {
+  const date = datePart(selectedDate);
+  const startDate = datePart(goal.startDate) || datePart(goal.createdAt) || datePart(fallbackStartDate);
+  const deadline = datePart(goal.deadline);
+
+  if (!date || (startDate && date < startDate)) return false;
+  if (deadline && date > deadline) return false;
+
+  return goal.current < goal.target;
+}
+
 const jsWeekdayToKey: WeekdayKey[] = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
 function weekdayKeyFromDateKey(dateKey: string): WeekdayKey | null {
@@ -358,12 +383,13 @@ function isActionScheduledForDate(system: System, routine: Routine | undefined, 
 }
 
 export function toTodaySystemViews(sourceSystems: System[], dateKey = "today"): TodaySystemView[] {
-  return sourceSystems.flatMap((system) =>
-    system.dailyActions.flatMap((action) => {
+  return sourceSystems.flatMap((system) => {
+    const actionViews = system.dailyActions.flatMap((action) => {
       const routine = getRoutine(system, action.routineId);
       if (!isActionScheduledForDate(system, routine, action, dateKey)) return [];
 
       const goal = getGoal(system, action.goalId);
+      if (goal && !isGoalVisibleOnDate(goal, dateKey, system.createdAt)) return [];
       const iconKey = routine?.iconKey ?? system.iconKey;
       const cadence = routine?.cadence ?? system.cadence ?? "";
       const startDate = resolveStartDate(system, routine, action);
@@ -376,6 +402,7 @@ export function toTodaySystemViews(sourceSystems: System[], dateKey = "today"): 
       const actionReflections = system.reflections.filter((reflection) => reflection.dailyActionId === action.id);
 
       return {
+        type: action.goalId ? "goal" as const : action.routineId ? "habit" as const : "system" as const,
         id: action.id,
         systemId: system.id,
         routineId: action.routineId,
@@ -398,6 +425,7 @@ export function toTodaySystemViews(sourceSystems: System[], dateKey = "today"): 
               current: goal.current,
               target: goal.target,
               unit: goal.unit,
+              deadline: goal.deadline,
             }
           : undefined,
         today: {
@@ -412,8 +440,61 @@ export function toTodaySystemViews(sourceSystems: System[], dateKey = "today"): 
         completionLogs: actionLogs,
         reflections: actionReflections,
       };
-    }),
-  );
+    });
+
+    if (!isSystemActive(system)) return actionViews;
+
+    const actionGoalIds = new Set(
+      system.dailyActions
+        .map((action) => action.goalId)
+        .filter((goalId): goalId is string => Boolean(goalId)),
+    );
+    const goalViews = system.goals
+      .filter(
+        (goal) =>
+          goal.status === "active" &&
+          isGoalVisibleOnDate(goal, dateKey, system.createdAt) &&
+          !actionGoalIds.has(goal.id),
+      )
+      .map((goal): TodaySystemView => ({
+        type: "goal",
+        id: `goal-${goal.id}`,
+        systemId: system.id,
+        goalId: goal.id,
+        name: goal.title,
+        systemName: system.title,
+        systemIcon: getIcon(system.iconKey),
+        icon: Target,
+        iconKey: "target",
+        cadence: "",
+        startDate: datePart(goal.startDate) || datePart(goal.createdAt) || datePart(system.createdAt),
+        scheduleDays: [],
+        streak: 0,
+        routines: system.routines.map((item) => ({ id: item.id, title: item.title })),
+        goals: system.goals.map((item) => ({ id: item.id, title: item.title })),
+        goal: {
+          id: goal.id,
+          title: goal.title,
+          current: goal.current,
+          target: goal.target,
+          unit: goal.unit,
+          deadline: goal.deadline,
+        },
+        today: {
+          done: 0,
+          total: 1,
+          label: uz.today.plannedToday,
+          status: "planned",
+          plannedAmount: goal.target,
+          actualAmount: goal.current,
+          unit: goal.unit,
+        },
+        completionLogs: system.completionLogs.filter((log) => log.goalId === goal.id),
+        reflections: system.reflections.filter((reflection) => reflection.goalId === goal.id),
+      }));
+
+    return [...actionViews, ...goalViews];
+  });
 }
 
 export function toSystemDetailView(system: System, dateKey = toLocalDateKey(new Date())): TodaySystemView {
@@ -433,6 +514,7 @@ export function toSystemDetailView(system: System, dateKey = toLocalDateKey(new 
   const actionReflections = action ? system.reflections.filter((reflection) => reflection.dailyActionId === action.id) : system.reflections;
 
   return {
+    type: goal && !routine ? "goal" : routine ? "habit" : "system",
     id: action?.id ?? system.id,
     systemId: system.id,
     routineId: action?.routineId ?? routine?.id,
@@ -455,6 +537,7 @@ export function toSystemDetailView(system: System, dateKey = toLocalDateKey(new 
           current: goal.current,
           target: goal.target,
           unit: goal.unit,
+          deadline: goal.deadline,
         }
       : undefined,
     today: {
@@ -491,6 +574,7 @@ export function toRoutineDetailView(
   const total = action?.total ?? 1;
 
   return {
+    type: "habit",
     id: action?.id ?? routine.id,
     systemId: system.id,
     routineId: routine.id,
@@ -522,6 +606,50 @@ export function toRoutineDetailView(
     },
     completionLogs: actionLogs,
     reflections: actionReflections,
+  };
+}
+
+export function toGoalDetailView(
+  system: System,
+  goalId: string,
+): TodaySystemView | null {
+  const goal = system.goals.find((item) => item.id === goalId);
+  if (!goal) return null;
+
+  return {
+    type: "goal",
+    id: goal.id,
+    systemId: system.id,
+    goalId: goal.id,
+    name: goal.title,
+    systemName: system.title,
+    systemIcon: getIcon(system.iconKey),
+    icon: Target,
+    iconKey: "target",
+    cadence: "",
+    startDate: system.createdAt.slice(0, 10),
+    scheduleDays: [],
+    streak: 0,
+    routines: system.routines.map((item) => ({ id: item.id, title: item.title })),
+    goals: system.goals.map((item) => ({ id: item.id, title: item.title })),
+    goal: {
+      id: goal.id,
+      title: goal.title,
+      current: goal.current,
+      target: goal.target,
+      unit: goal.unit,
+      deadline: goal.deadline,
+    },
+    today: {
+      done: 0,
+      total: 1,
+      label: uz.today.plannedToday,
+      status: "planned",
+      plannedAmount: goal.target,
+      unit: goal.unit,
+    },
+    completionLogs: system.completionLogs.filter((log) => log.goalId === goal.id),
+    reflections: system.reflections.filter((reflection) => reflection.goalId === goal.id),
   };
 }
 
@@ -691,13 +819,18 @@ function createDailyActionForRoutine(systemId: string, routine: Routine, startDa
 }
 
 function createGoalFromPayload(payload: CreateSystemPayload): Goal {
+  const createdAt = new Date().toISOString();
+
   return {
     id: buildId("goal", payload.name),
     title: payload.name,
-    current: 0,
-    target: 1,
-    unit: "marta",
+    current: payload.currentValue ?? 0,
+    target: payload.targetAmount ?? 1,
+    unit: payload.unit ?? "ta",
     status: "active",
+    startDate: payload.startDate,
+    deadline: payload.deadline,
+    createdAt,
   };
 }
 

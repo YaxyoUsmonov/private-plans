@@ -26,6 +26,7 @@ type ProgressSystemDetailSheetProps = {
   onDelete: (systemId: string) => void;
   onRequestAddHabit: (systemId: string) => void;
   onRequestHabitDetail: (systemId: string, routineId: string) => void;
+  onRequestGoalDetail: (systemId: string, goalId: string) => void;
   onExitComplete?: () => void;
 };
 
@@ -40,6 +41,7 @@ export function ProgressSystemDetailSheet({
   onDelete,
   onRequestAddHabit,
   onRequestHabitDetail,
+  onRequestGoalDetail,
   onExitComplete,
 }: ProgressSystemDetailSheetProps) {
   return (
@@ -53,6 +55,7 @@ export function ProgressSystemDetailSheet({
           onDelete={onDelete}
           onRequestAddHabit={onRequestAddHabit}
           onRequestHabitDetail={onRequestHabitDetail}
+          onRequestGoalDetail={onRequestGoalDetail}
         />
       ) : null}
     </AnimatePresence>
@@ -66,6 +69,7 @@ function ProgressSystemDetailContent({
   onDelete,
   onRequestAddHabit,
   onRequestHabitDetail,
+  onRequestGoalDetail,
 }: {
   system: System;
   onClose: () => void;
@@ -73,6 +77,7 @@ function ProgressSystemDetailContent({
   onDelete: ProgressSystemDetailSheetProps["onDelete"];
   onRequestAddHabit: ProgressSystemDetailSheetProps["onRequestAddHabit"];
   onRequestHabitDetail: ProgressSystemDetailSheetProps["onRequestHabitDetail"];
+  onRequestGoalDetail: ProgressSystemDetailSheetProps["onRequestGoalDetail"];
 }) {
   const [pageIndex, setPageIndex] = useState(0);
   const Icon = iconRegistry[system.iconKey];
@@ -131,6 +136,7 @@ function ProgressSystemDetailContent({
               system={system}
               onAddHabit={() => onRequestAddHabit(system.id)}
               onSelectHabit={(routineId) => onRequestHabitDetail(system.id, routineId)}
+              onSelectGoal={(goalId) => onRequestGoalDetail(system.id, goalId)}
             />
           </SheetPage>
           <SheetPage>
@@ -158,13 +164,15 @@ function ManagementPage({
   system,
   onAddHabit,
   onSelectHabit,
+  onSelectGoal,
 }: {
   system: System;
   onAddHabit: () => void;
   onSelectHabit: (routineId: string) => void;
+  onSelectGoal: (goalId: string) => void;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       {system.description ? (
         <section className="rounded-[22px] border border-violet-200/10 bg-white/[0.035] p-3.5">
           <p className="text-sm font-semibold leading-6 text-slate-300">{system.description}</p>
@@ -192,6 +200,7 @@ function ManagementPage({
         icon={Target}
         emptyText="Hali maqsad qo‘yilmagan"
         actionLabel="Maqsad qo‘shish"
+        onItemClick={onSelectGoal}
         items={system.goals.map((goal) => ({
           id: goal.id,
           title: goal.title,
@@ -300,7 +309,7 @@ function SettingsPage({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <SettingsField label="Tizim nomi">
         <input
           value={name}

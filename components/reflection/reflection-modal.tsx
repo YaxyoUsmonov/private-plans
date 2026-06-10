@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { Check, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { TodaySystemView } from "@/lib/mock-data";
@@ -15,10 +16,19 @@ type ReflectionModalProps = {
 };
 
 export function ReflectionModal({ system, onClose, onSave }: ReflectionModalProps) {
-  return (
+  const portalReady = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
+
+  if (!portalReady) return null;
+
+  return createPortal(
     <AnimatePresence>
       {system ? <ReflectionModalContent key={system.id} system={system} onClose={onClose} onSave={onSave} /> : null}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 

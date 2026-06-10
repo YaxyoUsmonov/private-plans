@@ -11,6 +11,7 @@ type SystemSectionProps = {
   systems: TodaySystemView[];
   enableRowLayoutAnimation?: boolean;
   onSwipeReflect?: (system: TodaySystemView) => void;
+  onSwipeGoalProgress?: (system: TodaySystemView) => void;
   onUndo?: (system: TodaySystemView) => void;
   onOpenDetails?: (system: TodaySystemView) => void;
 };
@@ -36,6 +37,7 @@ export function SystemSection({
   systems,
   enableRowLayoutAnimation = true,
   onSwipeReflect,
+  onSwipeGoalProgress,
   onUndo,
   onOpenDetails,
 }: SystemSectionProps) {
@@ -66,6 +68,7 @@ export function SystemSection({
                 enableLayoutAnimation={enableRowLayoutAnimation}
                 enableStatusAnimation={enableRowLayoutAnimation}
                 onSwipeReflect={accent === "pending" ? onSwipeReflect : undefined}
+                onSwipeGoalProgress={accent === "pending" ? onSwipeGoalProgress : undefined}
                 onUndo={accent === "completed" ? onUndo : undefined}
                 onOpenDetails={onOpenDetails}
               />

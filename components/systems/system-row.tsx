@@ -11,13 +11,15 @@ type SystemRowProps = {
   enableLayoutAnimation?: boolean;
   enableStatusAnimation?: boolean;
   onSwipeReflect?: (system: TodaySystemView) => void;
+  onSwipeGoalProgress?: (system: TodaySystemView) => void;
   onUndo?: (system: TodaySystemView) => void;
   onOpenDetails?: (system: TodaySystemView) => void;
 };
 
 const SWIPE_REFLECT_THRESHOLD = -78;
 const SWIPE_REFLECT_RIGHT_THRESHOLD = 78;
-const SNAP_BACK_COMPLETE_DELAY_MS = 45;
+const SWIPE_VISUAL_THRESHOLD = 5;
+const SWIPE_DRAG_RATIO = 0.8;
 const ACTION_BACKGROUND_WIDTH = "calc(100vw + 320px)";
 const rowLayoutTransition = {
   type: "spring",
@@ -55,6 +57,7 @@ function SystemRowComponent({
   enableLayoutAnimation = true,
   enableStatusAnimation = true,
   onSwipeReflect,
+  onSwipeGoalProgress,
   onUndo,
   onOpenDetails,
 }: SystemRowProps) {
@@ -63,8 +66,17 @@ function SystemRowComponent({
   const shouldReduceMotion = useReducedMotion();
   const dragX = useMotionValue(0);
   const isPlanned = system.today.status === "planned";
+  const isGoal = system.type === "goal";
+  const canSwipeHabit = isPlanned && system.type === "habit";
+  const canSwipeGoal = isPlanned && isGoal;
+  const canSwipe = canSwipeHabit || canSwipeGoal;
+  const goalProgressPercent =
+    isGoal && system.goal && system.goal.target > 0
+      ? Math.min(100, Math.max(0, Math.round((system.goal.current / system.goal.target) * 100)))
+      : 0;
   const suppressClickRef = useRef(false);
   const pendingReflectRef = useRef(false);
+  const pendingGoalProgressRef = useRef(false);
 
   const resetSwipe = useCallback(() => {
     const resetRow = animate(
@@ -72,20 +84,43 @@ function SystemRowComponent({
       0,
       shouldReduceMotion
         ? { duration: 0.01 }
-        : { duration: 0.15, ease: [0.2, 0.9, 0.2, 1] },
+        : {
+            type: "spring",
+            stiffness: 380,
+            damping: 38,
+            mass: 0.75,
+          },
     );
     return resetRow.then(() => {
-      if (pendingReflectRef.current) {
-        pendingReflectRef.current = false;
-        window.setTimeout(() => onSwipeReflect?.(system), shouldReduceMotion ? 0 : SNAP_BACK_COMPLETE_DELAY_MS);
-      }
+      if (!pendingReflectRef.current) return;
+      pendingReflectRef.current = false;
+      onSwipeReflect?.(system);
+    }).then(() => {
+      if (!pendingGoalProgressRef.current) return;
+      pendingGoalProgressRef.current = false;
+      onSwipeGoalProgress?.(system);
     });
-  }, [dragX, onSwipeReflect, shouldReduceMotion, system]);
+  }, [dragX, onSwipeGoalProgress, onSwipeReflect, shouldReduceMotion, system]);
 
   const handleDragEnd = useCallback(
     async (_: MouseEvent | TouchEvent | PointerEvent, info: { offset: { x: number } }) => {
-      if (!isPlanned) return;
-      suppressClickRef.current = Math.abs(info.offset.x) > 6;
+      if (!canSwipe) return;
+      suppressClickRef.current =
+        Math.abs(info.offset.x) >= SWIPE_VISUAL_THRESHOLD;
+
+      if (canSwipeGoal) {
+        if (
+          info.offset.x > SWIPE_REFLECT_RIGHT_THRESHOLD ||
+          info.offset.x < SWIPE_REFLECT_THRESHOLD
+        ) {
+          pendingGoalProgressRef.current = true;
+        }
+        await resetSwipe();
+        window.setTimeout(() => {
+          suppressClickRef.current = false;
+        }, 180);
+        return;
+      }
 
       if (info.offset.x > SWIPE_REFLECT_RIGHT_THRESHOLD) {
         pendingReflectRef.current = true;
@@ -110,7 +145,15 @@ function SystemRowComponent({
         suppressClickRef.current = false;
       }, 180);
     },
-    [isPlanned, resetSwipe],
+    [canSwipe, canSwipeGoal, resetSwipe],
+  );
+
+  const handleDrag = useCallback(
+    (_: MouseEvent | TouchEvent | PointerEvent, info: { offset: { x: number } }) => {
+      if (!canSwipe) return;
+      dragX.set(info.offset.x * SWIPE_DRAG_RATIO);
+    },
+    [canSwipe, dragX],
   );
 
   const handleStatusClick = useCallback(() => {
@@ -135,18 +178,18 @@ function SystemRowComponent({
     >
       <motion.article
         whileTap={shouldReduceMotion ? undefined : { scale: 0.992 }}
-        drag={isPlanned ? "x" : false}
+        drag={canSwipe ? "x" : false}
         dragConstraints={{ left: -112, right: 112 }}
-        dragDirectionLock
-        dragElastic={0.09}
+        dragElastic={0.15}
         dragMomentum={false}
+        onDrag={handleDrag}
         onDragEnd={handleDragEnd}
         onTap={handleRowClick}
         onClick={handleRowClick}
-        style={{ x: dragX, touchAction: "pan-y" }}
-        className={`group relative w-full overflow-visible px-3.5 py-2 transition duration-300 sm:px-5 ${styles.bg}`}
+        style={{ x: dragX, touchAction: "pan-y", willChange: "transform" }}
+        className={`group relative w-full overflow-visible px-3.5 py-2 transition-colors duration-300 sm:px-5 ${styles.bg}`}
       >
-        {isPlanned ? (
+        {canSwipeHabit ? (
           <>
             <motion.span
               aria-hidden
@@ -176,6 +219,38 @@ function SystemRowComponent({
             </motion.span>
           </>
         ) : null}
+        {canSwipeGoal ? (
+          <>
+            <motion.span
+              aria-hidden
+              className="pointer-events-none absolute right-full top-0 h-full bg-[#7F00FF]/24"
+              initial={false}
+              animate={{ width: ACTION_BACKGROUND_WIDTH }}
+              style={{ transformOrigin: "right center" }}
+            />
+            <motion.span
+              aria-hidden
+              className="pointer-events-none absolute right-full top-0 flex h-full w-28 items-center justify-end gap-1.5 pr-5 text-violet-100"
+            >
+              <Target size={18} strokeWidth={2.25} />
+              <span className="text-xs font-black">Progress</span>
+            </motion.span>
+            <motion.span
+              aria-hidden
+              className="pointer-events-none absolute left-full top-0 h-full bg-[#7F00FF]/24"
+              initial={false}
+              animate={{ width: ACTION_BACKGROUND_WIDTH }}
+              style={{ transformOrigin: "left center" }}
+            />
+            <motion.span
+              aria-hidden
+              className="pointer-events-none absolute left-full top-0 flex h-full w-28 items-center justify-start gap-1.5 pl-5 text-violet-100"
+            >
+              <Target size={18} strokeWidth={2.25} />
+              <span className="text-xs font-black">Progress</span>
+            </motion.span>
+          </>
+        ) : null}
         {system.today.status === "completed" ? (
           <motion.span
             aria-hidden
@@ -189,11 +264,12 @@ function SystemRowComponent({
           <button
             type="button"
             aria-label={`${system.name} status`}
+            disabled={isGoal}
             onClick={(event) => {
               event.stopPropagation();
               handleStatusClick();
             }}
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${styles.button} text-white transition duration-300 group-active:scale-95`}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${styles.button} text-white transition duration-300 group-active:scale-95 disabled:cursor-default`}
           >
             {system.today.status === "completed" ? (
               <motion.span
@@ -214,17 +290,18 @@ function SystemRowComponent({
             </span>
             <div className="min-w-0 flex-1">
               <h3 className="truncate text-base font-black text-white">{system.name}</h3>
-              <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-slate-400">
-                <span className="inline-flex items-center gap-1 text-orange-100/90">
-                  <Flame size={13} className="icon-tone-warning" />
-                  {system.streak} kun ketma-ket
-                </span>
-                {system.goal ? (
-                  <span className={`truncate ${styles.label}`}>
-                    {system.goal.current} / {system.goal.target} {system.goal.unit}
+              {isGoal && system.goal ? (
+                <p className={`mt-1.5 truncate text-xs font-semibold ${styles.label}`}>
+                  {system.goal.current} / {system.goal.target} {system.goal.unit} · {goalProgressPercent}%
+                </p>
+              ) : (
+                <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-slate-400">
+                  <span className="inline-flex items-center gap-1 text-orange-100/90">
+                    <Flame size={13} className="icon-tone-warning" />
+                    {system.streak} kun ketma-ket
                   </span>
-                ) : null}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 

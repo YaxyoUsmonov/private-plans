@@ -99,6 +99,7 @@ function mapGoal(row: GoalRow): Goal {
     unit: row.unit,
     status: row.status,
     deadline: row.deadline ?? undefined,
+    createdAt: row.created_at,
   };
 }
 
@@ -281,9 +282,10 @@ export async function persistCreation(
 
   await createGoal(systemId, {
     name: payload.name,
-    current_amount: 0,
+    current_amount: payload.currentValue ?? 0,
     target_amount: payload.targetAmount ?? 1,
-    unit: payload.unit ?? "marta",
+    unit: payload.unit ?? "ta",
+    deadline: payload.deadline || null,
     status: "active",
   });
 }
@@ -348,6 +350,10 @@ export async function persistEntityName(
     return;
   }
   await updateSystem(view.systemId, { name });
+}
+
+export async function persistGoalProgress(goalId: string, currentAmount: number) {
+  await updateGoal(goalId, { current_amount: currentAmount });
 }
 
 export async function persistEntitySchedule(
