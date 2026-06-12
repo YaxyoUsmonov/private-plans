@@ -20,6 +20,7 @@ type DetailPanelProps = {
   zIndex?: string;
   backLabel?: string;
   showBack?: boolean;
+  compactSheet?: boolean;
   footer?: ReactNode;
   children: ReactNode;
   onClose: () => void;
@@ -35,6 +36,7 @@ export function DetailPanel({
   zIndex = "z-50",
   backLabel = uz.common.back,
   showBack = true,
+  compactSheet = false,
   footer,
   children,
   onClose,
@@ -58,7 +60,9 @@ export function DetailPanel({
 
   const panelClass =
     mode === "sheet"
-      ? "absolute inset-x-0 bottom-0 top-[calc(env(safe-area-inset-top)+54px)] mx-auto flex max-w-md flex-col overflow-hidden rounded-t-[34px] border border-white/[0.06] bg-[#11162A]"
+      ? compactSheet
+        ? "absolute inset-x-0 bottom-0 mx-auto flex max-h-[68vh] max-w-md flex-col overflow-hidden rounded-t-[34px] border border-white/[0.06] bg-[#11162A]"
+        : "absolute inset-x-0 bottom-0 top-[calc(env(safe-area-inset-top)+54px)] mx-auto flex max-w-md flex-col overflow-hidden rounded-t-[34px] border border-white/[0.06] bg-[#11162A]"
       : "absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-hidden border-l border-white/[0.06] bg-[#11162A]";
 
   const initial = mode === "sheet" ? { y: "100%" } : { x: "100%" };

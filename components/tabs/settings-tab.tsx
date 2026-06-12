@@ -55,6 +55,13 @@ const queueNotifications: Array<{ title: string; time: string; enabled: boolean 
 
 const soundOptions = ["Private standart", "Yumshoq puls", "Chuqur fokus", "Sokin qo‘ng‘iroq"] as const;
 
+type CachedAccountProfile = {
+  email: string | null;
+  displayName: string;
+};
+
+let cachedAccountProfile: CachedAccountProfile | null = null;
+
 export function SettingsTab({ systems }: { systems: System[] }) {
   const router = useRouter();
   const [activeSection, setActiveSection] = useState<SettingsKey | null>(null);
@@ -90,6 +97,7 @@ export function SettingsTab({ systems }: { systems: System[] }) {
       const { error } = await signOut();
       if (error) throw error;
 
+      cachedAccountProfile = null;
       router.replace("/login");
       router.refresh();
     } catch (error) {
@@ -113,7 +121,7 @@ export function SettingsTab({ systems }: { systems: System[] }) {
         </div>
       ) : null}
 
-      <section className="space-y-2">
+      <section className="space-y-1.5">
         {settingsSections.map((section) => {
           const Icon = section.icon;
           return (
@@ -121,14 +129,13 @@ export function SettingsTab({ systems }: { systems: System[] }) {
               key={section.key}
               type="button"
               onClick={() => setActiveSection(section.key)}
-              className="flex min-h-[72px] w-full items-center gap-3 rounded-[24px] border border-violet-200/10 bg-white/[0.035] px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,.055)] transition duration-300 active:scale-[0.99]"
+              className="flex min-h-[60px] w-full items-center gap-3 rounded-[22px] border border-violet-200/10 bg-white/[0.035] px-3.5 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,.055)] transition duration-300 active:scale-[0.99]"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-200/10 bg-violet-400/10 text-violet-100">
                 <Icon size={18} />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-black text-white">{section.title}</span>
-                <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{section.subtitle}</span>
               </span>
               <ChevronRight size={17} className="shrink-0 text-slate-500" />
             </button>
@@ -136,13 +143,13 @@ export function SettingsTab({ systems }: { systems: System[] }) {
         })}
       </section>
 
-      <section className="space-y-2">
+      <section className="space-y-1.5">
         <button
           type="button"
           onClick={() =>
             showMockMessage("Ma'lumotlarni eksport qilish tez orada mavjud bo'ladi.")
           }
-          className="flex min-h-[72px] w-full items-center gap-3 rounded-[24px] border border-violet-200/10 bg-white/[0.035] px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,.055)] transition duration-300 active:scale-[0.99]"
+          className="flex min-h-[60px] w-full items-center gap-3 rounded-[22px] border border-violet-200/10 bg-white/[0.035] px-3.5 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,.055)] transition duration-300 active:scale-[0.99]"
         >
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-200/10 bg-violet-400/10 text-violet-100">
             <Download size={18} />
@@ -150,9 +157,6 @@ export function SettingsTab({ systems }: { systems: System[] }) {
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-black text-white">
               Ma&apos;lumotlarni eksport qilish
-            </span>
-            <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">
-              Tizimlar, odatlar va maqsadlaringizni yuklab oling
             </span>
           </span>
           <ChevronRight size={17} className="shrink-0 text-slate-500" />
@@ -162,7 +166,7 @@ export function SettingsTab({ systems }: { systems: System[] }) {
 
       <AnimatePresence>
         {activeMeta ? (
-          <SettingsDrawer title={activeMeta.title} subtitle={activeMeta.subtitle} icon={activeMeta.icon} onClose={() => setActiveSection(null)}>
+          <SettingsDrawer title={activeMeta.title} icon={activeMeta.icon} onClose={() => setActiveSection(null)}>
             {activeMeta.key === "profile" ? (
               <ProfileDetail
                 systems={systems}
@@ -279,13 +283,11 @@ export function SettingsTab({ systems }: { systems: System[] }) {
 
 function SettingsDrawer({
   title,
-  subtitle,
   icon: Icon,
   onClose,
   children,
 }: {
   title: string;
-  subtitle: string;
   icon: typeof User;
   onClose: () => void;
   children: React.ReactNode;
@@ -310,14 +312,13 @@ function SettingsDrawer({
         exit={{ x: "100%" }}
         transition={sheetSpring}
       >
-        <div className="flex items-start justify-between gap-4 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
+        <div className="flex items-center justify-between gap-4 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-200/12 bg-violet-400/10 text-violet-100">
               <Icon size={19} />
             </span>
             <div className="min-w-0">
               <h2 className="truncate text-2xl font-black text-white">{title}</h2>
-              <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{subtitle}</p>
             </div>
           </div>
           <button
@@ -330,7 +331,7 @@ function SettingsDrawer({
           </button>
         </div>
 
-        <button type="button" onClick={onClose} className="mx-4 mb-3 flex items-center gap-2 text-sm font-black text-violet-100/80">
+        <button type="button" onClick={onClose} className="mx-4 mb-2.5 flex items-center gap-2 text-sm font-black text-violet-100/80">
           <ChevronLeft size={17} />
           {uz.common.back}
         </button>
@@ -352,10 +353,16 @@ function ProfileDetail({
   signOutError: string;
   onSignOut: () => void;
 }) {
-  const [email, setEmail] = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState<string | null>(
+    () => cachedAccountProfile?.email ?? null,
+  );
+  const [displayName, setDisplayName] = useState(
+    () => cachedAccountProfile?.displayName ?? "",
+  );
   const [editOpen, setEditOpen] = useState(false);
-  const [draftName, setDraftName] = useState("");
+  const [draftName, setDraftName] = useState(
+    () => cachedAccountProfile?.displayName ?? "",
+  );
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState("");
 
@@ -372,9 +379,13 @@ function ProfileDetail({
 
         const nextEmail = user?.email ?? null;
         const nextDisplayName = profile?.display_name?.trim() ?? "";
+        cachedAccountProfile = {
+          email: nextEmail,
+          displayName: nextDisplayName,
+        };
         setEmail(nextEmail);
         setDisplayName(nextDisplayName);
-        setDraftName(nextDisplayName);
+        setDraftName((current) => current || nextDisplayName);
       } catch (error) {
         console.error("[Auth] Profil foydalanuvchisini yuklab bo'lmadi:", error);
       }
@@ -423,7 +434,13 @@ function ProfileDetail({
     try {
       const normalizedName = draftName.trim();
       const profile = await updateProfileDisplayName(normalizedName || null);
-      setDisplayName(profile.display_name?.trim() ?? "");
+      const nextDisplayName = profile.display_name?.trim() ?? "";
+      cachedAccountProfile = {
+        email,
+        displayName: nextDisplayName,
+      };
+      setDisplayName(nextDisplayName);
+      setDraftName(nextDisplayName);
       setEditOpen(false);
     } catch (error) {
       setProfileError(

@@ -29,7 +29,14 @@ type TodayTabProps = {
     cadence: string,
     days: WeekdayKey[],
   ) => void;
-  onGoalProgressPersist: (goalId: string, currentAmount: number) => void;
+  onGoalProgressPersist: (input: {
+    goalId: string;
+    systemId: string;
+    date: string;
+    currentAmount: number;
+    targetAmount: number;
+    unit: string;
+  }) => void;
 };
 
 export function TodayTab({
@@ -99,24 +106,56 @@ export function TodayTab({
 
   const updateGoalProgress = useCallback(
     (view: TodaySystemView, currentAmount: number) => {
-      if (!view.goalId) return;
+      if (!view.goalId || !view.goal) return;
+
+      const goal = view.goal;
+      const actionDate = selectedDate || toDateKey(new Date());
+      const now = new Date().toISOString();
 
       onSystemsChange((current) =>
-        current.map((system) =>
-          system.id === view.systemId
-            ? {
-                ...system,
-                goals: system.goals.map((goal) =>
-                  goal.id === view.goalId ? { ...goal, current: currentAmount } : goal,
-                ),
-              }
-            : system,
-        ),
+        current.map((system): System => {
+          if (system.id !== view.systemId) return system;
+
+          const completionLogs = system.completionLogs.filter(
+            (log) => !(log.goalId === view.goalId && log.date === actionDate),
+          );
+
+          return {
+            ...system,
+            goals: system.goals.map((goal) =>
+              goal.id === view.goalId ? { ...goal, current: currentAmount } : goal,
+            ),
+            completionLogs: [
+              ...completionLogs,
+              {
+                id: `goal-progress-${view.goalId}-${actionDate}`,
+                systemId: view.systemId,
+                goalId: view.goalId,
+                dailyActionId: `goal-${view.goalId}`,
+                date: actionDate,
+                status: "completed",
+                source: "user",
+                plannedAmount: goal.target,
+                actualAmount: currentAmount,
+                unit: goal.unit,
+                createdAt: now,
+              },
+            ],
+            updatedAt: now,
+          };
+        }),
       );
-      onGoalProgressPersist(view.goalId, currentAmount);
+      onGoalProgressPersist({
+        goalId: view.goalId,
+        systemId: view.systemId,
+        date: actionDate,
+        currentAmount,
+        targetAmount: goal.target,
+        unit: goal.unit,
+      });
       setProgressGoal(null);
     },
-    [onGoalProgressPersist, onSystemsChange],
+    [onGoalProgressPersist, onSystemsChange, selectedDate],
   );
 
   const updateSystemStatus = useCallback((systemId: string, status: ActionStatus, reflectionBody = "") => {

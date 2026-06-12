@@ -5,6 +5,7 @@ import {
   BookOpen,
   Bot,
   CalendarClock,
+  Check,
   ChevronRight,
   Flame,
   History,
@@ -12,6 +13,7 @@ import {
   MessageSquareText,
   Sparkles,
   Target,
+  X,
   Zap,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -22,7 +24,8 @@ import { ProgressSystemDetailSheet } from "@/components/systems/progress-system-
 import { SystemDetailSheet } from "@/components/systems/system-detail-sheet";
 import { DetailPanel, PanelEmptyState } from "@/components/ui/detail-panel";
 import { DetailTabNavigator } from "@/components/ui/detail-tab-navigator";
-import { iconRegistry, toGoalDetailView, toRoutineDetailView, toSystemListViews, type CreateSystemPayload, type System, type SystemListView } from "@/lib/mock-data";
+import { toDateKey } from "@/lib/date-utils";
+import { isRoutineScheduledOnDate, toGoalDetailView, toRoutineDetailView, toSystemListViews, type CreateSystemPayload, type System, type SystemListView } from "@/lib/mock-data";
 import { sheetSpring } from "@/lib/motion";
 import { uz } from "@/lib/uz";
 
@@ -37,17 +40,17 @@ type ProgressSectionKey =
   | "energy"
   | "schedule";
 
-const progressSections = [
+const progressSections: Array<{
+  key: ProgressSectionKey;
+  title: string;
+  subtitle: string;
+  icon: typeof Bot;
+}> = [
   { key: "systems-list", title: uz.progress.systems, subtitle: uz.progress.systemsSubtitle, icon: Layers3 },
   { key: "ai", title: uz.progress.aiCoach, subtitle: uz.progress.aiSubtitle, icon: Bot },
   { key: "weekly", title: uz.progress.weeklyReview, subtitle: uz.progress.weeklySubtitle, icon: MessageSquareText },
-  { key: "snapshot", title: uz.progress.growthSnapshot, subtitle: uz.progress.snapshotSubtitle, icon: Sparkles },
-  { key: "systems", title: uz.progress.systemsProgress, subtitle: uz.progress.systemsProgressSubtitle, icon: Target },
   { key: "consistency", title: uz.progress.consistency, subtitle: uz.progress.consistencySubtitle, icon: Flame },
-  { key: "missed", title: uz.progress.missedPatterns, subtitle: uz.progress.missedSubtitle, icon: BookOpen },
-  { key: "energy", title: uz.progress.energyInsights, subtitle: uz.progress.energySubtitle, icon: Zap },
-  { key: "schedule", title: uz.progress.scheduleSuggestions, subtitle: uz.progress.scheduleSubtitle, icon: CalendarClock },
-] satisfies Array<{ key: ProgressSectionKey; title: string; subtitle: string; icon: typeof Bot }>;
+];
 
 const systemDetailPages = ["Tizimlar", "Odatlar", "Maqsadlar"] as const;
 
@@ -67,8 +70,24 @@ export function ProgressTab({
   onSystemDeletePersist,
 }: ProgressTabProps) {
   const [activeSection, setActiveSection] = useState<ProgressSectionKey | null>(null);
+  const [weeklyRoutineDetail, setWeeklyRoutineDetail] = useState<{ systemId: string; routineId: string } | null>(null);
+  const [weeklyGoalDetail, setWeeklyGoalDetail] = useState<{ systemId: string; goalId: string } | null>(null);
   const activeMeta = progressSections.find((section) => section.key === activeSection) ?? null;
   const systemViews = toSystemListViews(systems);
+  const weeklyRoutineSystem = weeklyRoutineDetail
+    ? systems.find((system) => system.id === weeklyRoutineDetail.systemId) ?? null
+    : null;
+  const weeklyRoutineView =
+    weeklyRoutineDetail && weeklyRoutineSystem
+      ? toRoutineDetailView(weeklyRoutineSystem, weeklyRoutineDetail.routineId)
+      : null;
+  const weeklyGoalSystem = weeklyGoalDetail
+    ? systems.find((system) => system.id === weeklyGoalDetail.systemId) ?? null
+    : null;
+  const weeklyGoalView =
+    weeklyGoalDetail && weeklyGoalSystem
+      ? toGoalDetailView(weeklyGoalSystem, weeklyGoalDetail.goalId)
+      : null;
 
   return (
     <div className="space-y-5 pt-2">
@@ -77,7 +96,7 @@ export function ProgressTab({
         <p className="mt-2 text-sm text-slate-400">{uz.progress.subtitle}</p>
       </header>
 
-      <section className="space-y-2">
+      <section className="space-y-1.5">
         {progressSections.map((section) => {
           const Icon = section.icon;
 
@@ -86,14 +105,13 @@ export function ProgressTab({
               key={section.key}
               type="button"
               onClick={() => setActiveSection(section.key)}
-              className="flex min-h-[72px] w-full items-center gap-3 rounded-[24px] border border-violet-200/10 bg-white/[0.035] px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,.055)] transition duration-300 active:scale-[0.99]"
+              className="flex min-h-[60px] w-full items-center gap-3 rounded-[22px] border border-violet-200/10 bg-white/[0.035] px-3.5 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,.055)] transition duration-300 active:scale-[0.99]"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-200/10 bg-violet-400/10 text-violet-100">
                 <Icon size={18} />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-black text-white">{section.title}</span>
-                <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{section.subtitle}</span>
               </span>
               <ChevronRight size={17} className="shrink-0 text-slate-500" />
             </button>
@@ -106,7 +124,7 @@ export function ProgressTab({
         title={activeMeta?.title ?? ""}
         subtitle={activeMeta?.subtitle}
         icon={activeMeta?.icon}
-        mode="drawer"
+        mode="sheet"
         onClose={() => setActiveSection(null)}
       >
         {activeMeta?.key === "systems-list" ? (
@@ -120,7 +138,13 @@ export function ProgressTab({
           />
         ) : null}
         {activeMeta?.key === "ai" ? <AiCoachDetail /> : null}
-        {activeMeta?.key === "weekly" ? <WeeklyReviewDetail systems={systems} /> : null}
+        {activeMeta?.key === "weekly" ? (
+          <WeeklyReviewDetail
+            systems={systems}
+            onOpenRoutine={(systemId, routineId) => setWeeklyRoutineDetail({ systemId, routineId })}
+            onOpenGoal={(systemId, goalId) => setWeeklyGoalDetail({ systemId, goalId })}
+          />
+        ) : null}
         {activeMeta?.key === "snapshot" ? <GrowthSnapshotDetail systems={systems} /> : null}
         {activeMeta?.key === "systems" ? <SystemsProgressDetail systems={systems} /> : null}
         {activeMeta?.key === "consistency" ? <ConsistencyDetail systems={systems} /> : null}
@@ -128,6 +152,17 @@ export function ProgressTab({
         {activeMeta?.key === "energy" ? <EnergyInsightsDetail /> : null}
         {activeMeta?.key === "schedule" ? <ScheduleSuggestionsDetail /> : null}
       </DetailPanel>
+
+      <SystemDetailSheet
+        system={weeklyRoutineView}
+        onClose={() => setWeeklyRoutineDetail(null)}
+        onStatusChange={() => undefined}
+      />
+      <SystemDetailSheet
+        system={weeklyGoalView}
+        onClose={() => setWeeklyGoalDetail(null)}
+        onStatusChange={() => undefined}
+      />
     </div>
   );
 }
@@ -155,6 +190,7 @@ function ProgressSystemsDetail({
   const pendingHabitSystemRef = useRef<string | null>(null);
   const pendingRoutineRef = useRef<{ systemId: string; routineId: string } | null>(null);
   const pendingGoalRef = useRef<{ systemId: string; goalId: string } | null>(null);
+  const routineReturnsToSystemRef = useRef(false);
   const goalReturnsToSystemRef = useRef(false);
   const pendingDetailSystemRef = useRef<string | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -276,9 +312,18 @@ function ProgressSystemsDetail({
   }, []);
 
   const requestHabitDetail = useCallback((systemId: string, routineId: string) => {
+    routineReturnsToSystemRef.current = true;
     pendingRoutineRef.current = { systemId, routineId };
     setSelectedSystemId(null);
   }, []);
+
+  const openRoutineFromList = useCallback(
+    (routine: { systemId: string; routineId: string }) => {
+      routineReturnsToSystemRef.current = false;
+      setRoutineDetail(routine);
+    },
+    [],
+  );
 
   const requestGoalDetail = useCallback((systemId: string, goalId: string) => {
     goalReturnsToSystemRef.current = true;
@@ -325,7 +370,10 @@ function ProgressSystemsDetail({
   }, [systems]);
 
   const closeRoutineDetail = useCallback(() => {
-    pendingDetailSystemRef.current = routineDetail?.systemId ?? null;
+    pendingDetailSystemRef.current = routineReturnsToSystemRef.current
+      ? routineDetail?.systemId ?? null
+      : null;
+    routineReturnsToSystemRef.current = false;
     setRoutineDetail(null);
   }, [routineDetail]);
 
@@ -364,7 +412,7 @@ function ProgressSystemsDetail({
             <SystemsCompactPage systems={systemViews} onSelect={setSelectedSystemId} />
           </SwipePage>
           <SwipePage>
-            <SystemRoutinesPage systems={systems} />
+            <SystemRoutinesPage systems={systems} onSelect={openRoutineFromList} />
           </SwipePage>
           <SwipePage>
             <SystemGoalsPage systems={systems} onSelect={openGoalFromList} />
@@ -442,32 +490,40 @@ function SystemsCompactPage({ systems, onSelect }: { systems: SystemListView[]; 
   );
 }
 
-function SystemRoutinesPage({ systems }: { systems: System[] }) {
-  const hasRoutines = systems.some((system) => system.routines.length > 0);
+function SystemRoutinesPage({
+  systems,
+  onSelect,
+}: {
+  systems: System[];
+  onSelect: (routine: { systemId: string; routineId: string }) => void;
+}) {
+  const routines = systems
+    .flatMap((system) =>
+      system.routines.map((routine) => ({
+        routine,
+        systemId: system.id,
+      })),
+    )
+    .sort((left, right) => {
+      if (!left.routine.createdAt || !right.routine.createdAt) return 0;
+      return right.routine.createdAt.localeCompare(left.routine.createdAt);
+    });
 
-  if (!hasRoutines) {
+  if (!routines.length) {
     return <PanelEmptyState title="Hali odatlar yo'q" description="Tizim ichida odat yaratilganda shu yerda ko'rinadi." icon={BookOpen} />;
   }
 
   return (
-    <div className="space-y-3">
-      {systems.map((system) => (
-        <div key={system.id} className="space-y-2">
-          <h3 className="px-1 text-[11px] font-black uppercase tracking-[0.14em] text-violet-100/70">{system.title}</h3>
-          {system.routines.map((routine) => {
-            const Icon = iconRegistry[routine.iconKey];
-
-            return (
-              <CompactRow
-                key={routine.id}
-                icon={<Icon size={17} />}
-                title={routine.title}
-                subtitle={`${routine.cadence}${routine.targetAmount ? ` · ${routine.targetAmount} ${routine.unit ?? ""}` : ""}`}
-                meta={`${routine.streak} kun`}
-              />
-            );
-          })}
-        </div>
+    <div className="space-y-2">
+      {routines.map(({ routine, systemId }) => (
+          <CompactRow
+            key={routine.id}
+            onClick={() => onSelect({ systemId, routineId: routine.id })}
+            icon={<Zap size={17} />}
+            title={routine.title}
+            subtitle={`${routine.cadence}${routine.targetAmount ? ` · ${routine.targetAmount} ${routine.unit ?? ""}` : ""}`}
+            meta={`${routine.streak} kun`}
+          />
       ))}
     </div>
   );
@@ -480,31 +536,34 @@ function SystemGoalsPage({
   systems: System[];
   onSelect: (goal: { systemId: string; goalId: string }) => void;
 }) {
-  const hasGoals = systems.some((system) => system.goals.length > 0);
+  const goals = systems
+    .flatMap((system) =>
+      system.goals.map((goal) => ({
+        goal,
+        systemId: system.id,
+      })),
+    )
+    .sort((left, right) => {
+      if (!left.goal.createdAt || !right.goal.createdAt) return 0;
+      return right.goal.createdAt.localeCompare(left.goal.createdAt);
+    });
 
-  if (!hasGoals) {
+  if (!goals.length) {
     return <PanelEmptyState title="Hali maqsad yo'q" description="Tizim ichida maqsad yaratilganda shu yerda ko'rinadi." icon={Target} />;
   }
 
   return (
-    <div className="space-y-3">
-      {systems.map((system) =>
-        system.goals.length ? (
-          <div key={system.id} className="space-y-2">
-            <h3 className="px-1 text-[11px] font-black uppercase tracking-[0.14em] text-violet-100/70">{system.title}</h3>
-            {system.goals.map((goal) => (
-              <CompactRow
-                key={goal.id}
-                onClick={() => onSelect({ systemId: system.id, goalId: goal.id })}
-                icon={<Target size={17} />}
-                title={goal.title}
-                subtitle={`${goal.current} / ${goal.target} ${goal.unit}`}
-                meta={goal.status === "completed" ? "Bajarildi" : "Faol"}
-              />
-            ))}
-          </div>
-        ) : null,
-      )}
+    <div className="space-y-2">
+      {goals.map(({ goal, systemId }) => (
+        <CompactRow
+          key={goal.id}
+          onClick={() => onSelect({ systemId, goalId: goal.id })}
+          icon={<Target size={17} />}
+          title={goal.title}
+          subtitle={`${goal.current} / ${goal.target} ${goal.unit}`}
+          meta={goal.status === "completed" ? "Bajarildi" : "Faol"}
+        />
+      ))}
     </div>
   );
 }
@@ -566,22 +625,644 @@ function AiCoachDetail() {
   );
 }
 
-function WeeklyReviewDetail({ systems }: { systems: System[] }) {
-  const logs = getCompletionLogs(systems);
-  const completedCount = logs.filter((log) => log.status === "completed").length;
+function WeeklyReviewDetail({
+  systems,
+  onOpenRoutine,
+  onOpenGoal,
+}: {
+  systems: System[];
+  onOpenRoutine: (systemId: string, routineId: string) => void;
+  onOpenGoal: (systemId: string, goalId: string) => void;
+}) {
+  const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
+  const { current } = getWeeklyRanges();
+  const allLogs = getCompletionLogs(systems);
+  const logs = allLogs.filter(
+    (log) => log.date >= current.start && log.date <= current.end,
+  );
+  const completedLogs = logs.filter((log) => log.status === "completed");
+  const rhythmLogs = logs.filter(
+    (log) => log.status === "completed" || log.status === "missed",
+  );
   const missedCount = logs.filter((log) => log.status === "missed").length;
-
-  if (!logs.length) {
-    return <PanelEmptyState title="Tahlil uchun hali yetarli ma'lumot yo'q" description="Completion loglar paydo bo'lganda haftalik tahlil shu yerda ko'rinadi." icon={MessageSquareText} />;
-  }
+  const completedCount = completedLogs.length;
+  const totalCount = completedCount + missedCount;
+  const mostActiveHabit = getRoutineInsight(systems, completedLogs, "completed");
+  const weakestHabit = getRoutineInsight(systems, logs, "missed", mostActiveHabit.id);
+  const goalChanges = getWeeklyGoalChanges(systems, allLogs, current.start, current.end);
+  const weakestGoal = getWeakGoal(systems, allLogs, current.start, goalChanges[0]?.goalId);
+  const timeline = getWeeklyTimeline(systems, rhythmLogs, current.start);
+  const mostActiveDay = timeline.reduce((best, day) =>
+    day.count > best.count ? day : best,
+  );
+  const selectedDay =
+    timeline.find((day) => day.date === selectedDate) ?? mostActiveDay;
+  const busiestDays = getBusiestDayLabels(
+    getWeeklyTimeline(systems, completedLogs, current.start),
+  );
+  const hasMultipleBusiestDays = busiestDays.includes(" va ") || busiestDays.includes(",");
+  const summaryLines = totalCount
+    ? [
+        `Bu hafta ${completedCount} faoliyat bajarildi.`,
+        busiestDays
+          ? `${busiestDays} eng faol ${hasMultipleBusiestDays ? "kunlar" : "kun"} bo‘ldi.`
+          : null,
+        goalChanges[0] ? `${goalChanges[0].title} maqsadida progress kuzatildi.` : null,
+        weakestGoal.hasIssue
+          ? `Keyingi hafta ${weakestGoal.value}ga ko‘proq e'tibor berish tavsiya etiladi.`
+          : weakestHabit.count
+            ? `Keyingi hafta ${weakestHabit.value} odatida ritmni tiklash tavsiya etiladi.`
+            : "Keyingi hafta odat barqarorligini davom ettirish tavsiya etiladi.",
+      ].filter((line): line is string => Boolean(line))
+    : ["Haftalik xulosa uchun ma’lumot yetarli emas."];
 
   return (
-    <div className="space-y-4">
-      <DetailGroup title={uz.progress.weeklyReview}>
-        <StatGrid stats={[[uz.common.completed, String(completedCount)], [uz.common.missed, String(missedCount)], ["Jami", String(logs.length)]]} />
-      </DetailGroup>
+    <div className="space-y-3">
+      <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-3.5">
+        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+          Haftalik ritm
+        </p>
+        <div className="mx-auto mt-3 grid h-[92px] w-full max-w-[330px] grid-cols-7 items-end gap-2">
+          {timeline.map((day) => {
+            const height =
+              day.count === 0
+                ? 22
+                : day.count === 1
+                  ? 42
+                  : day.count === 2
+                    ? 62
+                    : 82;
+
+            return (
+              <button
+                key={day.date}
+                type="button"
+                onClick={() => setSelectedDate(day.date)}
+                className="group flex h-full min-w-0 touch-manipulation flex-col items-center justify-end"
+                aria-label={`${day.label}: ${day.count} ta faoliyat`}
+                aria-pressed={selectedDay.date === day.date}
+              >
+                <span
+                  className={`relative flex w-7 overflow-hidden rounded-[9px] transition-[transform,box-shadow] duration-200 group-active:scale-95 ${
+                    day.count ? "text-white" : "bg-white/[0.06] text-slate-400"
+                  } ${
+                    selectedDay.date === day.date
+                      ? "shadow-[0_0_0_2px_var(--accent),0_0_14px_rgba(127,0,255,0.22)]"
+                      : ""
+                  }`}
+                  style={{ height }}
+                >
+                  {day.count ? (
+                    <span className="flex h-full w-full flex-col">
+                      {day.missedCount ? (
+                        <span
+                          className="w-full bg-[var(--status-missed)]"
+                          style={{
+                            height: `${(day.missedCount / day.count) * 100}%`,
+                          }}
+                        />
+                      ) : null}
+                      {day.completedCount ? (
+                        <span
+                          className="w-full bg-[#008000]"
+                          style={{
+                            height: `${(day.completedCount / day.count) * 100}%`,
+                          }}
+                        />
+                      ) : null}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="mt-1.5 block text-center text-[10px] font-black text-slate-300">
+                  {day.shortLabel}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {!totalCount ? (
+          <p className="mt-3 text-center text-xs font-semibold text-slate-500">
+            Hali haftalik ma’lumot yig‘ilmagan
+          </p>
+        ) : null}
+      </div>
+
+      <section className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-3.5">
+        <div className="flex items-end justify-between gap-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+            Tanlangan kun
+          </p>
+          <p className="text-sm font-black text-white">{selectedDay.label}</p>
+        </div>
+
+        <div className="mt-2 divide-y divide-white/[0.06]">
+          <WeeklyDayActivityGroup
+            title="Bajarilganlar"
+            items={selectedDay.completedItems}
+            emptyLabel="Bajarilgan faoliyat yo‘q"
+            status="completed"
+          />
+          <WeeklyDayActivityGroup
+            title="Bajarilmaganlar"
+            items={selectedDay.missedItems}
+            emptyLabel="Bajarilmagan faoliyat yo‘q"
+            status="missed"
+          />
+        </div>
+      </section>
+
+      <section>
+        <div className="overflow-hidden rounded-[22px] border border-white/[0.06] bg-white/[0.025]">
+          <div className="px-4 py-3.5">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="min-w-0 text-center">
+                {mostActiveHabit.id && mostActiveHabit.systemId ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenRoutine(mostActiveHabit.systemId!, mostActiveHabit.id!)}
+                    className="w-full rounded-[16px] px-1 py-1.5 text-center transition duration-200 active:scale-[0.97] active:bg-white/[0.04]"
+                  >
+                    <span className="block text-[11px] font-black text-[#008000]">🔥 Eng faol</span>
+                    <span className="mt-1 block truncate text-sm font-black text-white">{mostActiveHabit.value}</span>
+                    <span className="mt-0.5 block text-xs font-semibold text-slate-500">
+                      {mostActiveHabit.count} marta bajarildi
+                    </span>
+                  </button>
+                ) : (
+                  <>
+                    <p className="text-[11px] font-black text-[#008000]">🔥 Eng faol</p>
+                    <p className="mt-1 truncate text-sm font-black text-white">Hali odat faoliyati yo‘q</p>
+                    <p className="mt-0.5 text-xs font-semibold text-slate-500">Bu hafta</p>
+                  </>
+                )}
+              </div>
+              <div className="min-w-0 border-l border-white/[0.06] pl-3 text-center">
+                {weakestHabit.count && weakestHabit.id && weakestHabit.systemId ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenRoutine(weakestHabit.systemId!, weakestHabit.id!)}
+                    className="w-full rounded-[16px] px-1 py-1.5 text-center transition duration-200 active:scale-[0.97] active:bg-white/[0.04]"
+                  >
+                    <span className="block text-[11px] font-black text-[#FF3B30]/80">⚠️ Eng sust</span>
+                    <span className="mt-1 block truncate text-sm font-black text-white">{weakestHabit.value}</span>
+                    <span className="mt-0.5 block text-xs font-semibold text-slate-500">
+                      {weakestHabit.count} marta bajarilmadi
+                    </span>
+                  </button>
+                ) : (
+                  <p className="flex min-h-[52px] items-center justify-center text-xs font-semibold leading-5 text-slate-500">
+                    Hozircha sust odat yo‘q
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-white/[0.06] px-4 py-3.5">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="min-w-0 text-center">
+                <p className="text-[11px] font-black text-[#008000]">🚀 O‘sish</p>
+                {goalChanges[0] ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenGoal(goalChanges[0].systemId, goalChanges[0].goalId)}
+                    className="w-full rounded-[16px] px-1 py-1.5 text-center transition duration-200 active:scale-[0.97] active:bg-white/[0.04]"
+                  >
+                    <span className="block truncate text-sm font-black text-white">{goalChanges[0].title}</span>
+                    <span className="mt-0.5 block text-xs font-semibold text-slate-500">
+                      {goalChanges[0].previousAmount === null
+                        ? `${goalChanges[0].currentAmount} ${goalChanges[0].unit} gacha yangilandi`
+                        : `${goalChanges[0].previousAmount} → ${goalChanges[0].currentAmount} ${goalChanges[0].unit}`}
+                    </span>
+                  </button>
+                ) : (
+                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Hali maqsad progressi yo‘q</p>
+                )}
+              </div>
+              <div className="min-w-0 border-l border-white/[0.06] pl-3 text-center">
+                {weakestGoal.hasIssue ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenGoal(weakestGoal.systemId!, weakestGoal.goalId!)}
+                    className="w-full rounded-[16px] px-1 py-1.5 text-center transition duration-200 active:scale-[0.97] active:bg-white/[0.04]"
+                  >
+                    <span className="block text-[11px] font-black text-[#FF3B30]/80">⚠️ To‘xtagan</span>
+                    <span className="mt-1 block truncate text-sm font-black text-white">{weakestGoal.value}</span>
+                    <span className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500">{weakestGoal.meta}</span>
+                  </button>
+                ) : (
+                  <p className="flex min-h-[52px] items-center justify-center text-xs font-semibold leading-5 text-slate-500">
+                    Hozircha sust maqsad yo‘q
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
+        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+          Haftalik xulosa
+        </p>
+        <div className="mt-2 space-y-1 text-sm font-semibold leading-5 text-slate-200">
+          {summaryLines.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
+}
+
+function WeeklyDayActivityGroup({
+  title,
+  items,
+  emptyLabel,
+  status,
+}: {
+  title: string;
+  items: ReturnType<typeof getWeeklyTimeline>[number]["items"];
+  emptyLabel: string;
+  status: "completed" | "missed";
+}) {
+  return (
+    <div className="min-w-0 py-3 first:pt-2 last:pb-0">
+      <p
+        className={`text-[10px] font-black uppercase tracking-[0.1em] ${
+          status === "completed"
+            ? "text-[#008000]"
+            : "text-[var(--status-missed)]"
+        }`}
+      >
+        {title}
+      </p>
+      {items.length ? (
+        <div className="mt-1.5 divide-y divide-white/[0.05]">
+          {items.map((item) => (
+            <WeeklyDayActivityRow key={item.id} item={item} />
+          ))}
+        </div>
+      ) : (
+        <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-500">
+          — {emptyLabel}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function WeeklyDayActivityRow({
+  item,
+}: {
+  item: ReturnType<typeof getWeeklyTimeline>[number]["items"][number];
+}) {
+  const completed = item.status === "completed";
+
+  return (
+    <div className="flex min-h-10 items-center gap-2.5 py-2">
+      <span
+        className={`flex h-5 w-5 shrink-0 items-center justify-center ${
+          completed ? "text-[#008000]" : "text-[var(--status-missed)]"
+        }`}
+      >
+        {completed ? (
+          <Check size={15} strokeWidth={2.6} />
+        ) : (
+          <X size={15} strokeWidth={2.6} />
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-bold text-white">{item.title}</span>
+        {item.detail ? (
+          <span className="mt-0.5 block truncate text-[10px] font-semibold text-slate-500">
+            {item.detail}
+          </span>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
+function getWeeklyRanges() {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const daysFromMonday = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - daysFromMonday);
+
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+
+  return {
+    current: {
+      start: toDateKey(start),
+      end: toDateKey(end),
+    },
+  };
+}
+
+const weeklyDayLabels = [
+  { full: "Dushanba", short: "D" },
+  { full: "Seshanba", short: "S" },
+  { full: "Chorshanba", short: "C" },
+  { full: "Payshanba", short: "P" },
+  { full: "Juma", short: "J" },
+  { full: "Shanba", short: "Sh" },
+  { full: "Yakshanba", short: "Y" },
+] as const;
+
+function getBusiestDayLabels(
+  timeline: ReturnType<typeof getWeeklyTimeline>,
+) {
+  const highestCount = Math.max(...timeline.map((day) => day.count));
+  if (!highestCount) return "";
+
+  const labels = timeline
+    .filter((day) => day.count === highestCount)
+    .map((day) => day.label);
+
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} va ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")} va ${labels.at(-1)}`;
+}
+
+function getWeeklyTimeline(
+  systems: System[],
+  logs: System["completionLogs"],
+  weekStart: string,
+) {
+  const titles = new Map<string, { title: string; type: "habit" | "goal" }>();
+  systems.forEach((system) => {
+    system.routines.forEach((routine) => {
+      titles.set(`routine:${routine.id}`, {
+        title: routine.title,
+        type: "habit",
+      });
+    });
+    system.goals.forEach((goal) => {
+      titles.set(`goal:${goal.id}`, {
+        title: goal.title,
+        type: "goal",
+      });
+    });
+  });
+
+  const [year, month, day] = weekStart.split("-").map(Number);
+  const start = new Date(year, month - 1, day);
+
+  return weeklyDayLabels.map((label, index) => {
+    const date = new Date(start);
+    date.setDate(date.getDate() + index);
+    const dateKey = toDateKey(date);
+    const items = logs.flatMap((log) => {
+      const key = log.routineId
+        ? `routine:${log.routineId}`
+        : log.goalId
+          ? `goal:${log.goalId}`
+          : "";
+      const entity = titles.get(key);
+      if (log.date !== dateKey || !entity) return [];
+
+      return [
+        {
+          id: log.id,
+          title:
+            entity.type === "goal" && log.status === "completed"
+              ? `${entity.title} progress yangilandi`
+              : entity.title,
+          type: entity.type,
+          status: log.status,
+          detail:
+            entity.type === "goal" &&
+            log.status === "completed" &&
+            typeof log.actualAmount === "number"
+              ? `${log.actualAmount}${typeof log.plannedAmount === "number" ? ` / ${log.plannedAmount}` : ""} ${log.unit ?? ""}`.trim()
+              : undefined,
+        },
+      ];
+    });
+    const completedItems = items.filter((item) => item.status === "completed");
+    const missedItems = items.filter((item) => item.status === "missed");
+
+    return {
+      date: dateKey,
+      label: label.full,
+      shortLabel: label.short,
+      displayDate: `${String(date.getDate()).padStart(2, "0")}.${String(
+        date.getMonth() + 1,
+      ).padStart(2, "0")}`,
+      count: items.length,
+      completedCount: completedItems.length,
+      missedCount: missedItems.length,
+      completedItems,
+      missedItems,
+      items,
+    };
+  });
+}
+
+function getWeeklyGoalChanges(
+  systems: System[],
+  logs: System["completionLogs"],
+  weekStart: string,
+  weekEnd: string,
+) {
+  return systems
+    .flatMap((system) =>
+      system.goals.map((goal) => ({
+        goal,
+        systemId: system.id,
+      })),
+    )
+    .flatMap(({ goal, systemId }) => {
+      const goalLogs = logs
+        .filter(
+          (log) =>
+            log.goalId === goal.id &&
+            log.status === "completed" &&
+            typeof log.actualAmount === "number",
+        )
+        .sort(
+          (left, right) =>
+            left.date.localeCompare(right.date) ||
+            left.createdAt.localeCompare(right.createdAt),
+        );
+      const weeklyLogs = goalLogs.filter(
+        (log) => log.date >= weekStart && log.date <= weekEnd,
+      );
+      const latestWeeklyLog = weeklyLogs.at(-1);
+
+      if (!latestWeeklyLog || typeof latestWeeklyLog.actualAmount !== "number") {
+        return [];
+      }
+
+      const previousLog = goalLogs
+        .filter((log) => log.date < weekStart)
+        .at(-1);
+      const previousAmount =
+        typeof previousLog?.actualAmount === "number"
+          ? previousLog.actualAmount
+          : weeklyLogs.length > 1 && typeof weeklyLogs[0].actualAmount === "number"
+            ? weeklyLogs[0].actualAmount
+            : null;
+
+      if (previousAmount === latestWeeklyLog.actualAmount) {
+        return [];
+      }
+
+      return [
+        {
+          goalId: goal.id,
+          systemId,
+          title: goal.title,
+          previousAmount,
+          currentAmount: latestWeeklyLog.actualAmount,
+          unit: latestWeeklyLog.unit ?? goal.unit,
+          lastUpdatedAt: latestWeeklyLog.createdAt,
+        },
+      ];
+    })
+    .sort((left, right) => right.lastUpdatedAt.localeCompare(left.lastUpdatedAt))
+    .slice(0, 3);
+}
+
+function getRoutineInsight(
+  systems: System[],
+  logs: System["completionLogs"],
+  status: "completed" | "missed",
+  excludedRoutineId?: string,
+) {
+  const routineDetails = new Map(
+    systems.flatMap((system) =>
+      system.routines.map(
+        (routine) =>
+          [
+            routine.id,
+            {
+              title: routine.title,
+              iconKey: routine.iconKey,
+              routine,
+              system,
+            },
+          ] as const,
+      ),
+    ),
+  );
+  const counts = new Map<string, number>();
+
+  logs.forEach((log) => {
+    if (
+      log.status !== status ||
+      !log.routineId ||
+      log.routineId === excludedRoutineId ||
+      !routineDetails.has(log.routineId)
+    ) {
+      return;
+    }
+
+    const routineDetail = routineDetails.get(log.routineId);
+    if (
+      status === "missed" &&
+      routineDetail &&
+      !isRoutineScheduledOnDate(routineDetail.system, routineDetail.routine, log.date)
+    ) {
+      return;
+    }
+
+    counts.set(log.routineId, (counts.get(log.routineId) ?? 0) + 1);
+  });
+
+  const topRoutine = [...counts.entries()].sort(
+    ([leftId, leftCount], [rightId, rightCount]) =>
+      rightCount - leftCount || leftId.localeCompare(rightId),
+  )[0];
+
+  return {
+    id: topRoutine?.[0],
+    systemId: topRoutine ? routineDetails.get(topRoutine[0])?.system.id : undefined,
+    value: topRoutine
+      ? routineDetails.get(topRoutine[0])?.title ?? "Hali ma'lumot yo'q"
+      : "Hali ma'lumot yo'q",
+    iconKey: topRoutine ? routineDetails.get(topRoutine[0])?.iconKey : undefined,
+    count: topRoutine?.[1] ?? 0,
+    streak: topRoutine
+      ? systems
+          .flatMap((system) => system.routines)
+          .find((routine) => routine.id === topRoutine[0])?.streak ?? 0
+      : 0,
+  };
+}
+
+function getWeakGoal(
+  systems: System[],
+  allLogs: System["completionLogs"],
+  weekStart: string,
+  excludedGoalId?: string,
+) {
+  const activeGoals = systems
+    .flatMap((system) =>
+      system.goals.map((goal) => ({
+        goal,
+        systemId: system.id,
+      })),
+    )
+    .filter(
+      ({ goal }) =>
+        goal.id !== excludedGoalId &&
+        goal.status === "active" &&
+        goal.current < goal.target,
+    );
+
+  const weakestGoal = activeGoals
+    .map(({ goal, systemId }) => {
+      const latestGoalLog = allLogs
+        .filter((log) => log.goalId === goal.id && log.status === "completed")
+        .sort(
+          (left, right) =>
+            right.date.localeCompare(left.date) ||
+            right.createdAt.localeCompare(left.createdAt),
+        )[0];
+      const referenceDate =
+        latestGoalLog?.date ??
+        goal.startDate ??
+        goal.createdAt?.slice(0, 10) ??
+        weekStart;
+      const daysWithoutProgress = Math.max(
+        1,
+        Math.floor(
+          (new Date().getTime() - new Date(`${referenceDate}T00:00:00`).getTime()) /
+            86_400_000,
+        ),
+      );
+
+      return { goal, systemId, daysWithoutProgress };
+    })
+    .filter(({ daysWithoutProgress }) => daysWithoutProgress >= 5)
+    .sort(
+      (left, right) =>
+        right.daysWithoutProgress - left.daysWithoutProgress ||
+        left.goal.id.localeCompare(right.goal.id),
+    )[0];
+
+  if (weakestGoal) {
+    return {
+      value: weakestGoal.goal.title,
+      goalId: weakestGoal.goal.id,
+      systemId: weakestGoal.systemId,
+      meta: `${weakestGoal.daysWithoutProgress} kundan beri progress yangilanmagan`,
+      hasIssue: true,
+    };
+  }
+
+  return {
+    value: "Hozircha sust maqsad yo‘q",
+    goalId: undefined,
+    systemId: undefined,
+    meta: "",
+    hasIssue: false,
+  };
 }
 
 function GrowthSnapshotDetail({ systems }: { systems: System[] }) {
@@ -680,19 +1361,6 @@ function CompactInsight({ label, text, tone = "default" }: { label: string; text
     <div className={`rounded-[22px] border p-3 ${tone === "danger" ? "border-[#FF3B30]/16 bg-[#FF3B30]/8" : "border-violet-200/10 bg-white/[0.035]"}`}>
       <p className={`text-[10px] font-black uppercase tracking-[0.12em] ${tone === "danger" ? "text-[#FFD1CD]/70" : "text-violet-100/60"}`}>{label}</p>
       <p className="mt-1 text-sm font-bold leading-5 text-white">{text}</p>
-    </div>
-  );
-}
-
-function StatGrid({ stats }: { stats: Array<[string, string]> }) {
-  return (
-    <div className="grid grid-cols-3 gap-2">
-      {stats.map(([label, value]) => (
-        <div key={label} className="rounded-[18px] border border-violet-200/10 bg-white/[0.035] p-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">{label}</p>
-          <p className="mt-1 text-lg font-black text-white">{value}</p>
-        </div>
-      ))}
     </div>
   );
 }

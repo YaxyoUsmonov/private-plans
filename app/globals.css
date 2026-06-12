@@ -33,6 +33,7 @@
   --accent-rgb: 127, 0, 255;
   --accent-fill: #3A025B;
   --accent-light: #A855F7;
+  --status-missed: #FF3B30;
   --text: #FFFFFF;
   --foreground: #FFFFFF;
   --border-purple: rgba(255, 255, 255, 0.06);

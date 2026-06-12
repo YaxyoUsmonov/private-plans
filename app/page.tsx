@@ -117,8 +117,15 @@ function PlansApp() {
   );
 
   const handleGoalProgressPersist = useCallback(
-    (goalId: string, currentAmount: number) => {
-      void persistGoalProgress(goalId, currentAmount)
+    (input: {
+      goalId: string;
+      systemId: string;
+      date: string;
+      currentAmount: number;
+      targetAmount: number;
+      unit: string;
+    }) => {
+      void persistGoalProgress(input)
         .then(refreshSystems)
         .catch((error) => {
           console.error("[Plans] Maqsad progressi Supabase'da yangilanmadi:", error);

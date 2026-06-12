@@ -87,6 +87,7 @@ function mapRoutine(row: RoutineRow, completedCount: number): Routine {
     streak: completedCount,
     longestStreak: completedCount,
     reminderTime: row.reminder_time ?? undefined,
+    createdAt: row.created_at,
   };
 }
 
@@ -352,8 +353,27 @@ export async function persistEntityName(
   await updateSystem(view.systemId, { name });
 }
 
-export async function persistGoalProgress(goalId: string, currentAmount: number) {
-  await updateGoal(goalId, { current_amount: currentAmount });
+export async function persistGoalProgress(input: {
+  goalId: string;
+  systemId: string;
+  date: string;
+  currentAmount: number;
+  targetAmount: number;
+  unit: string;
+}) {
+  await updateGoal(input.goalId, { current_amount: input.currentAmount });
+  await saveCompletionLog({
+    system_id: input.systemId,
+    routine_id: null,
+    goal_id: input.goalId,
+    daily_action_id: null,
+    occurred_on: input.date,
+    status: "completed",
+    planned_amount: input.targetAmount,
+    actual_amount: input.currentAmount,
+    unit: input.unit,
+    source: "user",
+  });
 }
 
 export async function persistEntitySchedule(

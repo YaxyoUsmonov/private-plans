@@ -27,7 +27,7 @@ const sectionStyles = {
   },
   missed: {
     title: "text-[#FFD1CD]",
-    pill: "border-[#FF3B30]/28 bg-[#FF3B30]/14 shadow-[inset_0_1px_0_rgba(255,255,255,.10)]",
+    pill: "border-[color-mix(in_srgb,var(--status-missed)_28%,transparent)] bg-[color-mix(in_srgb,var(--status-missed)_14%,transparent)] shadow-[inset_0_1px_0_rgba(255,255,255,.10)]",
   },
 };
 

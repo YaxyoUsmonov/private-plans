@@ -35,6 +35,7 @@ export type Routine = {
   streak: number;
   longestStreak?: number;
   reminderTime?: string;
+  createdAt?: string;
 };
 
 export type Goal = {
@@ -308,7 +309,7 @@ function datePart(value?: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : "";
 }
 
-function isGoalVisibleOnDate(goal: Goal, selectedDate: string, fallbackStartDate: string) {
+function isGoalWithinDateRange(goal: Goal, selectedDate: string, fallbackStartDate: string) {
   const date = datePart(selectedDate);
   const startDate = datePart(goal.startDate) || datePart(goal.createdAt) || datePart(fallbackStartDate);
   const deadline = datePart(goal.deadline);
@@ -316,7 +317,19 @@ function isGoalVisibleOnDate(goal: Goal, selectedDate: string, fallbackStartDate
   if (!date || (startDate && date < startDate)) return false;
   if (deadline && date > deadline) return false;
 
-  return goal.current < goal.target;
+  return true;
+}
+
+function latestLogForGoal(system: System, goalId: string, dateKey: string) {
+  const selectedDate = datePart(dateKey);
+
+  return [...system.completionLogs]
+    .reverse()
+    .find(
+      (log) =>
+        log.goalId === goalId &&
+        datePart(log.date) === selectedDate,
+    );
 }
 
 const jsWeekdayToKey: WeekdayKey[] = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
@@ -382,6 +395,35 @@ function isActionScheduledForDate(system: System, routine: Routine | undefined, 
   return action.date === dateKey;
 }
 
+export function isRoutineScheduledOnDate(
+  system: System,
+  routine: Routine,
+  dateKey: string,
+) {
+  if (!dateKey || !isSystemActive(system)) return false;
+
+  const startDate = routine.startDate ?? system.startDate ?? system.createdAt.slice(0, 10);
+  if (dateKey < startDate) return false;
+
+  if (isDailyCadence(routine.cadence)) return true;
+
+  const scheduleDays =
+    routine.scheduleDays ??
+    system.scheduleDays ??
+    scheduleDaysFromCadence(routine.cadence);
+
+  if (
+    isWeeklyCadence(routine.cadence) ||
+    scheduleDaysFromCadence(routine.cadence).length > 0 ||
+    scheduleDays.length > 0
+  ) {
+    const weekdayKey = weekdayKeyFromDateKey(dateKey);
+    return Boolean(weekdayKey && scheduleDays.includes(weekdayKey));
+  }
+
+  return dateKey === startDate;
+}
+
 export function toTodaySystemViews(sourceSystems: System[], dateKey = "today"): TodaySystemView[] {
   return sourceSystems.flatMap((system) => {
     const actionViews = system.dailyActions.flatMap((action) => {
@@ -389,16 +431,29 @@ export function toTodaySystemViews(sourceSystems: System[], dateKey = "today"): 
       if (!isActionScheduledForDate(system, routine, action, dateKey)) return [];
 
       const goal = getGoal(system, action.goalId);
-      if (goal && !isGoalVisibleOnDate(goal, dateKey, system.createdAt)) return [];
+      const goalLog = goal ? latestLogForGoal(system, goal.id, dateKey) : undefined;
+      if (
+        goal &&
+        (
+          !isGoalWithinDateRange(goal, dateKey, system.createdAt) ||
+          (goal.current >= goal.target && goalLog?.status !== "completed")
+        )
+      ) {
+        return [];
+      }
       const iconKey = routine?.iconKey ?? system.iconKey;
       const cadence = routine?.cadence ?? system.cadence ?? "";
       const startDate = resolveStartDate(system, routine, action);
       const scheduleDays = resolveScheduleDays(system, routine, action);
-      const latestLog = latestLogForAction(system, action, dateKey);
+      const latestLog = goalLog ?? latestLogForAction(system, action, dateKey);
       const status = latestLog?.status ?? "planned";
       const done = status === "completed" ? action.total : 0;
       const label = status === "completed" ? uz.today.completedToday : status === "missed" ? uz.today.missedToday : uz.today.plannedToday;
-      const actionLogs = system.completionLogs.filter((log) => log.dailyActionId === action.id);
+      const actionLogs = system.completionLogs.filter(
+        (log) =>
+          log.dailyActionId === action.id ||
+          (goal ? log.goalId === goal.id : false),
+      );
       const actionReflections = system.reflections.filter((reflection) => reflection.dailyActionId === action.id);
 
       return {
@@ -451,47 +506,58 @@ export function toTodaySystemViews(sourceSystems: System[], dateKey = "today"): 
     );
     const goalViews = system.goals
       .filter(
-        (goal) =>
-          goal.status === "active" &&
-          isGoalVisibleOnDate(goal, dateKey, system.createdAt) &&
-          !actionGoalIds.has(goal.id),
+        (goal) => {
+          const todayLog = latestLogForGoal(system, goal.id, dateKey);
+
+          return (
+            goal.status === "active" &&
+            isGoalWithinDateRange(goal, dateKey, system.createdAt) &&
+            (goal.current < goal.target || todayLog?.status === "completed") &&
+            !actionGoalIds.has(goal.id)
+          );
+        },
       )
-      .map((goal): TodaySystemView => ({
-        type: "goal",
-        id: `goal-${goal.id}`,
-        systemId: system.id,
-        goalId: goal.id,
-        name: goal.title,
-        systemName: system.title,
-        systemIcon: getIcon(system.iconKey),
-        icon: Target,
-        iconKey: "target",
-        cadence: "",
-        startDate: datePart(goal.startDate) || datePart(goal.createdAt) || datePart(system.createdAt),
-        scheduleDays: [],
-        streak: 0,
-        routines: system.routines.map((item) => ({ id: item.id, title: item.title })),
-        goals: system.goals.map((item) => ({ id: item.id, title: item.title })),
-        goal: {
-          id: goal.id,
-          title: goal.title,
-          current: goal.current,
-          target: goal.target,
-          unit: goal.unit,
-          deadline: goal.deadline,
-        },
-        today: {
-          done: 0,
-          total: 1,
-          label: uz.today.plannedToday,
-          status: "planned",
-          plannedAmount: goal.target,
-          actualAmount: goal.current,
-          unit: goal.unit,
-        },
-        completionLogs: system.completionLogs.filter((log) => log.goalId === goal.id),
-        reflections: system.reflections.filter((reflection) => reflection.goalId === goal.id),
-      }));
+      .map((goal): TodaySystemView => {
+        const todayLog = latestLogForGoal(system, goal.id, dateKey);
+        const status = todayLog?.status === "completed" ? "completed" : "planned";
+
+        return {
+          type: "goal",
+          id: `goal-${goal.id}`,
+          systemId: system.id,
+          goalId: goal.id,
+          name: goal.title,
+          systemName: system.title,
+          systemIcon: getIcon(system.iconKey),
+          icon: Target,
+          iconKey: "target",
+          cadence: "",
+          startDate: datePart(goal.startDate) || datePart(goal.createdAt) || datePart(system.createdAt),
+          scheduleDays: [],
+          streak: 0,
+          routines: system.routines.map((item) => ({ id: item.id, title: item.title })),
+          goals: system.goals.map((item) => ({ id: item.id, title: item.title })),
+          goal: {
+            id: goal.id,
+            title: goal.title,
+            current: goal.current,
+            target: goal.target,
+            unit: goal.unit,
+            deadline: goal.deadline,
+          },
+          today: {
+            done: status === "completed" ? 1 : 0,
+            total: 1,
+            label: status === "completed" ? uz.today.completedToday : uz.today.plannedToday,
+            status,
+            plannedAmount: goal.target,
+            actualAmount: todayLog?.actualAmount ?? goal.current,
+            unit: goal.unit,
+          },
+          completionLogs: system.completionLogs.filter((log) => log.goalId === goal.id),
+          reflections: system.reflections.filter((reflection) => reflection.goalId === goal.id),
+        };
+      });
 
     return [...actionViews, ...goalViews];
   });
@@ -798,6 +864,7 @@ function createRoutineFromPayload(payload: CreateSystemPayload, routineName = pa
     streak: 0,
     longestStreak: 0,
     reminderTime: payload.reminderTime || undefined,
+    createdAt: new Date().toISOString(),
   };
 }
 

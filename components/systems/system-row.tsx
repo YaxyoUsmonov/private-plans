@@ -1,10 +1,9 @@
 "use client";
 
 import { memo, useCallback, useRef } from "react";
-import { Check, Flame, Layers3, Target, X, Zap } from "lucide-react";
+import { Check, Flame, Layers3, Target, Zap } from "lucide-react";
 import { animate, motion, useMotionValue, useReducedMotion } from "framer-motion";
 import type { TodaySystemView } from "@/lib/mock-data";
-import { softSpring } from "@/lib/motion";
 
 type SystemRowProps = {
   system: TodaySystemView;
@@ -31,31 +30,21 @@ const rowLayoutTransition = {
 const statusStyles = {
   planned: {
     bg: "bg-[#050816] shadow-[inset_0_1px_0_rgba(255,255,255,.018)] hover:bg-[#050816]",
-    dot: "bg-violet-300",
-    button: "border-violet-300/18 bg-violet-400/8",
-    icon: "text-violet-100",
-    label: "text-violet-100/85",
+    label: "text-slate-400",
   },
   completed: {
     bg: "bg-[#050816] shadow-[inset_0_1px_0_rgba(255,255,255,.018)] hover:bg-[#050816]",
-    dot: "bg-[#25EB2F]",
-    button: "border-[#25EB2F]/28 bg-[#25EB2F]/10 text-[#E9FFEC]",
-    icon: "text-[#D9FFDD]",
-    label: "text-[#C9FFD0]",
+    label: "text-slate-400",
   },
   missed: {
     bg: "bg-[#050816] shadow-[inset_0_1px_0_rgba(255,255,255,.018)] hover:bg-[#050816]",
-    dot: "bg-[#FF3B30]",
-    button: "border-[#FF3B30]/30 bg-[#FF3B30]/10 text-[#FFE7E5]",
-    icon: "text-[#FFD1CD]",
-    label: "text-[#FFD1CD]",
+    label: "text-slate-400",
   },
 };
 
 function SystemRowComponent({
   system,
   enableLayoutAnimation = true,
-  enableStatusAnimation = true,
   onSwipeReflect,
   onSwipeGoalProgress,
   onUndo,
@@ -157,11 +146,10 @@ function SystemRowComponent({
   );
 
   const handleStatusClick = useCallback(() => {
-    if (system.today.status === "completed") {
-      dragX.set(0);
-      onUndo?.(system);
-    }
-  }, [dragX, onUndo, system]);
+    if (system.today.status !== "completed" || isGoal) return;
+    dragX.set(0);
+    onUndo?.(system);
+  }, [dragX, isGoal, onUndo, system]);
 
   const handleRowClick = useCallback(() => {
     if (suppressClickRef.current) return;
@@ -251,43 +239,42 @@ function SystemRowComponent({
             </motion.span>
           </>
         ) : null}
-        {system.today.status === "completed" ? (
-          <motion.span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 bg-[#25EB2F]/[0.045]"
-            initial={enableStatusAnimation ? { opacity: 0 } : false}
-            animate={{ opacity: [0, 1, 0.35] }}
-            transition={enableStatusAnimation ? { duration: 0.55, ease: "easeOut" } : { duration: 0 }}
-          />
-        ) : null}
         <div className="relative z-10 flex min-w-0 items-center gap-3 overflow-hidden">
-          <button
-            type="button"
-            aria-label={`${system.name} status`}
-            disabled={isGoal}
-            onClick={(event) => {
-              event.stopPropagation();
-              handleStatusClick();
-            }}
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${styles.button} text-white transition duration-300 group-active:scale-95 disabled:cursor-default`}
-          >
-            {system.today.status === "completed" ? (
-              <motion.span
-                initial={shouldReduceMotion || !enableStatusAnimation ? false : { scale: 0.82, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={shouldReduceMotion || !enableStatusAnimation ? { duration: 0 } : softSpring}
-              >
-                <Check size={18} />
-              </motion.span>
-            ) : null}
-            {system.today.status === "missed" ? <X size={18} /> : null}
-            {system.today.status === "planned" ? <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} /> : null}
-          </button>
-
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center text-white">
-              <EntityIcon size={18} />
-            </span>
+            <button
+              type="button"
+              aria-label={
+                system.today.status === "completed" && !isGoal
+                  ? `${system.name} statusini qaytarish`
+                  : undefined
+              }
+              disabled={system.today.status !== "completed" || isGoal}
+              onClick={(event) => {
+                if (system.today.status !== "completed" || isGoal) return;
+                event.stopPropagation();
+                handleStatusClick();
+              }}
+              className="flex h-9 w-9 shrink-0 items-center justify-center border-0 bg-transparent p-0 disabled:cursor-default"
+            >
+              <EntityIcon
+                size={18}
+                className={
+                  system.today.status === "completed"
+                    ? "icon-tone-success"
+                    : system.today.status === "missed"
+                      ? "icon-tone-danger"
+                      : "text-white"
+                }
+                style={{
+                  color:
+                    system.today.status === "completed"
+                      ? "#008000"
+                      : system.today.status === "missed"
+                        ? "var(--status-missed)"
+                        : "#FFFFFF",
+                }}
+              />
+            </button>
             <div className="min-w-0 flex-1">
               <h3 className="truncate text-base font-black text-white">{system.name}</h3>
               {isGoal && system.goal ? (
