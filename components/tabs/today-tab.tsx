@@ -106,7 +106,7 @@ export function TodayTab({
   onSchedulePersist,
   onGoalProgressPersist,
 }: TodayTabProps) {
-  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
   const [reflectionSystem, setReflectionSystem] = useState<TodaySystemView | null>(null);
   const [detailSystem, setDetailSystem] = useState<TodaySystemView | null>(null);
   const [progressGoal, setProgressGoal] = useState<TodaySystemView | null>(null);
@@ -184,15 +184,6 @@ export function TodayTab({
   const completedSystems = visibleSystems.filter((system) => system.today.status === "completed");
   const missedSystems = visibleSystems.filter((system) => system.today.status === "missed");
   const hasListConstraint = activeFilter !== "all";
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const now = new Date();
-      setSelectedDate(toDateKey(now));
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -445,7 +436,9 @@ export function TodayTab({
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col items-start">
               <h1 className="text-[34px] font-black leading-none tracking-tight text-white">{uz.today.title}</h1>
-              <p className="mt-2.5 inline-flex h-6 items-center rounded-full bg-[#3A025B] px-3 text-[11px] font-bold text-white">
+              <p
+                className="plans-static-status-badge mt-2.5 inline-flex h-6 min-w-[76px] items-center justify-center rounded-full bg-[#3A025B] px-3 text-[11px] font-bold text-white"
+              >
                 {completedCount}/{activeCount} {uz.today.done}
               </p>
             </div>

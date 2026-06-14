@@ -98,6 +98,16 @@ body {
   color: var(--text);
 }
 
+.plans-static-status-badge {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+  filter: none !important;
+  view-transition-name: none;
+  will-change: auto !important;
+}
+
 .plans-focus-button,
 button[class*="bg-[#3A025B]"],
 button[class*="bg-violet-400/14"],

@@ -15,6 +15,8 @@ import {
   MessageSquareText,
   Sparkles,
   Target,
+  TrendingUp,
+  Trophy,
   X,
   Zap,
 } from "lucide-react";
@@ -1452,15 +1454,204 @@ function SystemsProgressDetail({ systems }: { systems: System[] }) {
 
 function ConsistencyDetail({ systems }: { systems: System[] }) {
   const logs = getCompletionLogs(systems);
-
-  if (!logs.length) {
-    return <PanelEmptyState title="Hali ma'lumot yo'q" description="Barqarorlik xaritasi completion loglar asosida quriladi." icon={Flame} />;
-  }
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const activeDates = new Set(
+    logs
+      .filter((log) => log.status === "completed")
+      .map((log) => log.date),
+  );
+  const currentStreak = calculateCurrentActivityStreak(activeDates);
+  const bestStreak = calculateBestActivityStreak(activeDates);
+  const lastThirtyDays = getRecentDateKeys(30);
+  const activeLastThirtyDays = lastThirtyDays.filter((date) =>
+    activeDates.has(date),
+  ).length;
+  const consistencyPercent = Math.round(
+    (activeLastThirtyDays / lastThirtyDays.length) * 100,
+  );
+  const selectedLogs = selectedDate
+    ? logs.filter(
+        (log) => log.date === selectedDate && log.status === "completed",
+      )
+    : [];
 
   return (
     <div className="space-y-4">
-      <ConsistencyHeatmap logs={logs} />
+      <div className="grid grid-cols-3 gap-2">
+        <ConsistencyMetric
+          icon={Flame}
+          label="Joriy seriya"
+          value={`${currentStreak} kun`}
+          accent="#EA580C"
+        />
+        <ConsistencyMetric
+          icon={TrendingUp}
+          label="Barqarorlik"
+          value={`${consistencyPercent}%`}
+          accent="#22C55E"
+        />
+        <ConsistencyMetric
+          icon={Trophy}
+          label="Rekord seriya"
+          value={`${bestStreak} kun`}
+          accent="#EAB308"
+        />
+      </div>
+
+      <ConsistencyHeatmap
+        logs={logs}
+        selectedDate={selectedDate ?? undefined}
+        onSelectDate={setSelectedDate}
+      />
+
+      <DetailPanel
+        open={Boolean(selectedDate)}
+        title={selectedDate ? formatUzbekDate(selectedDate) : ""}
+        mode="sheet"
+        compactSheet
+        showBack={false}
+        showClose
+        centerTitle
+        zIndex="z-[70]"
+        onClose={() => setSelectedDate(null)}
+      >
+        {selectedLogs.length ? (
+          <div className="overflow-hidden rounded-[18px] border border-white/[0.06] bg-white/[0.035] divide-y divide-white/[0.06]">
+            {selectedLogs.map((log) => (
+              <div
+                key={log.id}
+                className="flex min-h-12 items-center gap-3 px-4 py-2.5"
+              >
+                <Check
+                  size={17}
+                  strokeWidth={2.5}
+                  className="shrink-0 text-[#008000]"
+                />
+                <span className="min-w-0 flex-1 truncate text-sm font-bold text-white">
+                  {resolveCompletionLogTitle(systems, log)}
+                </span>
+              </div>
+            ))}
+            <div className="px-4 py-3 text-center text-xs font-black text-slate-400">
+              {selectedLogs.length}/{selectedLogs.length} bajarildi
+            </div>
+          </div>
+        ) : (
+          <PanelEmptyState title="Faollik aniqlanmadi" compact />
+        )}
+      </DetailPanel>
     </div>
+  );
+}
+
+function ConsistencyMetric({
+  icon: Icon,
+  label,
+  value,
+  accent,
+}: {
+  icon: typeof Flame;
+  label: string;
+  value: string;
+  accent: string;
+}) {
+  return (
+    <div
+      className="relative flex min-h-[104px] min-w-0 flex-col items-center justify-center overflow-hidden rounded-[20px] border border-white/[0.06] bg-white/[0.035] px-2 py-3 text-center"
+      style={{ boxShadow: `inset 0 1px 0 ${accent}20` }}
+    >
+      <span
+        aria-hidden
+        className="absolute inset-x-4 top-0 h-0.5 rounded-full"
+        style={{ backgroundColor: accent }}
+      />
+      <Icon size={18} strokeWidth={2.1} style={{ color: accent }} />
+      <p className="mt-2 text-[10px] font-black leading-tight text-slate-500">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-black" style={{ color: accent }}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function getRecentDateKeys(count: number) {
+  const today = new Date();
+
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(today);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(today.getDate() - (count - 1 - index));
+    return toDateKey(date);
+  });
+}
+
+function calculateCurrentActivityStreak(activeDates: Set<string>) {
+  let streak = 0;
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+
+  while (activeDates.has(toDateKey(cursor))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return streak;
+}
+
+function calculateBestActivityStreak(activeDates: Set<string>) {
+  const dates = [...activeDates].sort();
+  let best = 0;
+  let current = 0;
+  let previous: Date | null = null;
+
+  dates.forEach((dateKey) => {
+    const date = new Date(`${dateKey}T00:00:00`);
+    const consecutive =
+      previous &&
+      Math.round((date.getTime() - previous.getTime()) / 86_400_000) === 1;
+    current = consecutive ? current + 1 : 1;
+    best = Math.max(best, current);
+    previous = date;
+  });
+
+  return best;
+}
+
+const fullUzbekMonths = [
+  "Yanvar",
+  "Fevral",
+  "Mart",
+  "Aprel",
+  "May",
+  "Iyun",
+  "Iyul",
+  "Avgust",
+  "Sentabr",
+  "Oktabr",
+  "Noyabr",
+  "Dekabr",
+] as const;
+
+function formatUzbekDate(dateKey: string) {
+  const [, month, day] = dateKey.split("-").map(Number);
+  return `${day} ${fullUzbekMonths[month - 1] ?? ""}`.trim();
+}
+
+function resolveCompletionLogTitle(
+  systems: System[],
+  log: System["completionLogs"][number],
+) {
+  const system = systems.find((item) => item.id === log.systemId);
+  if (!system) return "Faoliyat";
+
+  return (
+    system.dailyActions.find((action) => action.id === log.dailyActionId)
+      ?.title ??
+    system.routines.find((routine) => routine.id === log.routineId)?.title ??
+    system.goals.find((goal) => goal.id === log.goalId)?.title ??
+    system.title
   );
 }
 
