@@ -29,7 +29,7 @@ export function AiCompanionSheet({ open, onClose }: AiCompanionSheetProps) {
           />
 
           <motion.section
-            className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[min(82dvh,680px)] max-w-md flex-col overflow-hidden rounded-t-[34px] border border-violet-200/12 bg-[#11162A] px-4 pb-[calc(env(safe-area-inset-bottom)+18px)] pt-4"
+            className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[min(calc(82dvh+10px),690px)] max-w-md flex-col overflow-hidden rounded-t-[34px] border border-violet-200/12 bg-[#11162A] px-4 pb-[calc(env(safe-area-inset-bottom)+18px)] pt-4"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}

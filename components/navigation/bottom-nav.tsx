@@ -19,7 +19,7 @@ type BottomNavProps = {
 export function BottomNav({ activeTab, systems, onChange, onCreate }: BottomNavProps) {
   return (
     <>
-      <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto flex max-w-md items-center justify-center gap-2.5 px-4 pb-[calc(env(safe-area-inset-bottom)+22px)]">
+      <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto flex max-w-md items-center justify-center gap-2.5 px-4 pb-[calc(env(safe-area-inset-bottom)+32px)]">
         <div className="relative grid h-[72px] flex-1 max-w-[318px] grid-cols-3 items-center gap-1 rounded-full border border-[#7F00FF]/24 bg-[#11162A]/92 p-1.5 shadow-[0_24px_74px_rgba(0,0,0,.46),inset_0_1px_0_rgba(255,255,255,.10)]">
             {tabs.map((tab) => {
               const Icon = tab.icon;

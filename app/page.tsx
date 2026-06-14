@@ -156,7 +156,7 @@ function PlansApp() {
   );
 
   return (
-    <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col bg-[#050816] px-3.5 pb-44 pt-5 sm:px-5">
+    <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col bg-[#050816] px-3.5 pb-44 pt-2.5 sm:px-5 md:pt-5">
       <TouchDebugger />
         {activeTab === "today" ? (
           <TodayTab

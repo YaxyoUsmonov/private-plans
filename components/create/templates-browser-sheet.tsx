@@ -128,7 +128,7 @@ export function TemplatesBrowserSheet({ open, onClose, onSelectTemplate, onExitC
           />
 
           <motion.section
-            className="absolute inset-x-0 bottom-0 top-[calc(env(safe-area-inset-top)+54px)] mx-auto flex max-w-md flex-col overflow-hidden rounded-t-[34px] border border-violet-200/12 bg-[#11162A]"
+            className="absolute inset-x-0 bottom-0 top-[calc(env(safe-area-inset-top)+44px)] mx-auto flex max-w-md flex-col overflow-hidden rounded-t-[34px] border border-violet-200/12 bg-[#11162A]"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
