@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   BookOpen,
   Bot,
   CalendarClock,
   Check,
+  ChevronDown,
   ChevronRight,
   Flame,
   History,
@@ -48,11 +50,14 @@ const progressSections: Array<{
 }> = [
   { key: "systems-list", title: uz.progress.systems, subtitle: uz.progress.systemsSubtitle, icon: Layers3 },
   { key: "ai", title: uz.progress.aiCoach, subtitle: uz.progress.aiSubtitle, icon: Bot },
-  { key: "weekly", title: uz.progress.weeklyReview, subtitle: uz.progress.weeklySubtitle, icon: MessageSquareText },
+  { key: "weekly", title: "Umumiy tahlil", subtitle: uz.progress.weeklySubtitle, icon: MessageSquareText },
   { key: "consistency", title: uz.progress.consistency, subtitle: uz.progress.consistencySubtitle, icon: Flame },
 ];
 
 const systemDetailPages = ["Tizimlar", "Odatlar", "Maqsadlar"] as const;
+const analyticsPeriods = ["Bugun", "Hafta", "Oy", "Yil"] as const;
+const analyticsPages = ["Ritm", "Natija", "Xulosa"] as const;
+type AnalyticsPeriod = (typeof analyticsPeriods)[number];
 
 type ProgressTabProps = {
   systems: System[];
@@ -62,6 +67,112 @@ type ProgressTabProps = {
   onSystemDeletePersist: (systemId: string) => void;
 };
 
+function AnalyticsPeriodSelector({
+  value,
+  onChange,
+}: {
+  value: AnalyticsPeriod;
+  onChange: (period: AnalyticsPeriod) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ top: 0, right: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        !rootRef.current?.contains(target) &&
+        !popoverRef.current?.contains(target)
+      ) {
+        setOpen(false);
+      }
+    };
+    const updatePosition = () => {
+      const rect = rootRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      setPosition({
+        top: rect.bottom + 8,
+        right: Math.max(12, window.innerWidth - rect.right),
+      });
+    };
+
+    updatePosition();
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
+  const label = value === "Bugun" ? "Kun" : value;
+
+  return (
+    <div ref={rootRef} className="relative z-[70]">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="flex h-8 min-w-[68px] items-center justify-center gap-1.5 rounded-full border border-[#7F00FF]/30 bg-[#3A025B] px-2.5 text-[10px] font-black text-white transition duration-200 active:scale-95"
+      >
+        {label}
+        <ChevronDown
+          size={13}
+          className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && typeof document !== "undefined"
+        ? createPortal(
+        <div
+          ref={popoverRef}
+          role="menu"
+          className="analytics-period-popover fixed z-[100] w-[116px] overflow-hidden p-1.5"
+          style={{
+            top: position.top,
+            right: position.right,
+            backgroundColor: "#11162A",
+          }}
+        >
+          {analyticsPeriods.map((period) => {
+            const active = period === value;
+
+            return (
+              <button
+                key={period}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                onClick={() => {
+                  onChange(period);
+                  setOpen(false);
+                }}
+                className={`flex h-9 w-full items-center rounded-[11px] px-3 text-left text-[11px] font-black transition ${
+                  active
+                    ? "bg-[#3A025B] text-white"
+                    : "bg-transparent text-slate-400 hover:bg-white/[0.04] hover:text-white"
+                }`}
+              >
+                {period === "Bugun" ? "Kun" : period}
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
 export function ProgressTab({
   systems,
   onSystemsChange,
@@ -70,6 +181,8 @@ export function ProgressTab({
   onSystemDeletePersist,
 }: ProgressTabProps) {
   const [activeSection, setActiveSection] = useState<ProgressSectionKey | null>(null);
+  const [analyticsPeriod, setAnalyticsPeriod] =
+    useState<AnalyticsPeriod>("Hafta");
   const [weeklyRoutineDetail, setWeeklyRoutineDetail] = useState<{ systemId: string; routineId: string } | null>(null);
   const [weeklyGoalDetail, setWeeklyGoalDetail] = useState<{ systemId: string; goalId: string } | null>(null);
   const activeMeta = progressSections.find((section) => section.key === activeSection) ?? null;
@@ -122,9 +235,18 @@ export function ProgressTab({
       <DetailPanel
         open={Boolean(activeMeta)}
         title={activeMeta?.title ?? ""}
-        subtitle={activeMeta?.subtitle}
-        icon={activeMeta?.icon}
         mode="sheet"
+        showBack={false}
+        showClose
+        centerTitle
+        headerTrailing={
+          activeMeta?.key === "weekly" ? (
+            <AnalyticsPeriodSelector
+              value={analyticsPeriod}
+              onChange={setAnalyticsPeriod}
+            />
+          ) : undefined
+        }
         onClose={() => setActiveSection(null)}
       >
         {activeMeta?.key === "systems-list" ? (
@@ -634,7 +756,8 @@ function WeeklyReviewDetail({
   onOpenRoutine: (systemId: string, routineId: string) => void;
   onOpenGoal: (systemId: string, goalId: string) => void;
 }) {
-  const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
+const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
+  const [pageIndex, setPageIndex] = useState(0);
   const { current } = getWeeklyRanges();
   const allLogs = getCompletionLogs(systems);
   const logs = allLogs.filter(
@@ -657,6 +780,10 @@ function WeeklyReviewDetail({
   );
   const selectedDay =
     timeline.find((day) => day.date === selectedDate) ?? mostActiveDay;
+  const maxRhythmCount = Math.max(...timeline.map((day) => day.count), 1);
+  const rhythmMinHeight = 10;
+  const rhythmMaxHeight = 82;
+  const rhythmEmptyHeight = 18;
   const busiestDays = getBusiestDayLabels(
     getWeeklyTimeline(systems, completedLogs, current.start),
   );
@@ -678,7 +805,15 @@ function WeeklyReviewDetail({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-3.5">
+      <DetailTabNavigator
+        pages={analyticsPages}
+        pageIndex={pageIndex}
+        onChange={setPageIndex}
+      />
+
+      {pageIndex === 0 ? (
+        <>
+          <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-3.5">
         <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
           Haftalik ritm
         </p>
@@ -686,12 +821,10 @@ function WeeklyReviewDetail({
           {timeline.map((day) => {
             const height =
               day.count === 0
-                ? 22
-                : day.count === 1
-                  ? 42
-                  : day.count === 2
-                    ? 62
-                    : 82;
+                ? rhythmEmptyHeight
+                : rhythmMinHeight +
+                  (day.count / maxRhythmCount) *
+                    (rhythmMaxHeight - rhythmMinHeight);
 
             return (
               <button
@@ -746,33 +879,42 @@ function WeeklyReviewDetail({
             Hali haftalik ma’lumot yig‘ilmagan
           </p>
         ) : null}
-      </div>
+          </div>
 
-      <section className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-3.5">
-        <div className="flex items-end justify-between gap-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-            Tanlangan kun
-          </p>
-          <p className="text-sm font-black text-white">{selectedDay.label}</p>
-        </div>
+          <section>
+            <h3 className="mb-2 pl-1 text-sm font-black text-white">
+              {selectedDay.label}
+            </h3>
+            <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] px-3.5">
+              <div className="divide-y divide-white/[0.06]">
+                {selectedDay.completedItems.length ? (
+                  <WeeklyDayActivityGroup
+                    title="Bajarilganlar"
+                    items={selectedDay.completedItems}
+                    emptyLabel="Bajarilgan faoliyat yo‘q"
+                    status="completed"
+                  />
+                ) : (
+                  <p className="py-3 text-xs font-semibold leading-5 text-slate-500">
+                    Bajarilgan faoliyat yo‘q
+                  </p>
+                )}
+                {selectedDay.missedItems.length ? (
+                  <WeeklyDayActivityGroup
+                    title="Bajarilmaganlar"
+                    items={selectedDay.missedItems}
+                    emptyLabel="Bajarilmagan faoliyat yo‘q"
+                    status="missed"
+                  />
+                ) : null}
+              </div>
+            </div>
+          </section>
+        </>
+      ) : null}
 
-        <div className="mt-2 divide-y divide-white/[0.06]">
-          <WeeklyDayActivityGroup
-            title="Bajarilganlar"
-            items={selectedDay.completedItems}
-            emptyLabel="Bajarilgan faoliyat yo‘q"
-            status="completed"
-          />
-          <WeeklyDayActivityGroup
-            title="Bajarilmaganlar"
-            items={selectedDay.missedItems}
-            emptyLabel="Bajarilmagan faoliyat yo‘q"
-            status="missed"
-          />
-        </div>
-      </section>
-
-      <section>
+      {pageIndex === 1 ? (
+        <section>
         <div className="overflow-hidden rounded-[22px] border border-white/[0.06] bg-white/[0.025]">
           <div className="px-4 py-3.5">
             <div className="grid grid-cols-2 gap-3">
@@ -860,9 +1002,11 @@ function WeeklyReviewDetail({
             </div>
           </div>
         </div>
-      </section>
+        </section>
+      ) : null}
 
-      <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
+      {pageIndex === 2 ? (
+        <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
         <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
           Haftalik xulosa
         </p>
@@ -871,7 +1015,8 @@ function WeeklyReviewDetail({
             <p key={line}>{line}</p>
           ))}
         </div>
-      </div>
+        </div>
+      ) : null}
 
     </div>
   );

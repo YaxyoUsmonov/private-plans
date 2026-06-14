@@ -20,6 +20,9 @@ type DetailPanelProps = {
   zIndex?: string;
   backLabel?: string;
   showBack?: boolean;
+  showClose?: boolean;
+  centerTitle?: boolean;
+  headerTrailing?: ReactNode;
   compactSheet?: boolean;
   footer?: ReactNode;
   children: ReactNode;
@@ -36,6 +39,9 @@ export function DetailPanel({
   zIndex = "z-50",
   backLabel = uz.common.back,
   showBack = true,
+  showClose = false,
+  centerTitle = false,
+  headerTrailing,
   compactSheet = false,
   footer,
   children,
@@ -116,27 +122,56 @@ export function DetailPanel({
             ) : null}
 
             <header className={`sticky top-0 z-10 border-b border-white/[0.06] bg-[#11162A] px-4 pb-3 ${mode === "sheet" ? "pt-3" : "pt-[calc(env(safe-area-inset-top)+1rem)]"}`}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex min-w-0 items-center gap-3">
+              <div
+                className={
+                  centerTitle
+                    ? "relative flex min-h-11 items-center justify-center"
+                    : "flex items-start justify-between gap-4"
+                }
+              >
+                <div
+                  className={
+                    centerTitle
+                      ? "flex min-w-0 items-center justify-center text-center"
+                      : "flex min-w-0 items-center gap-3"
+                  }
+                >
                   {Icon ? (
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-200/12 bg-violet-400/10 text-violet-100">
+                    <span
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-200/12 bg-violet-400/10 text-violet-100 ${
+                        centerTitle
+                          ? "absolute left-0 top-1/2 -translate-y-1/2"
+                          : ""
+                      }`}
+                    >
                       <Icon size={19} />
                     </span>
                   ) : null}
-                  <div className="min-w-0">
+                  <div className={`min-w-0 ${centerTitle ? "px-16" : ""}`}>
                     <h2 className="truncate text-2xl font-black text-white">{title}</h2>
                     {subtitle ? <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{subtitle}</p> : null}
                   </div>
                 </div>
-                {mode === "drawer" ? (
+                {mode === "drawer" || showClose ? (
                   <button
                     type="button"
                     onClick={onClose}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-200/12 bg-white/[0.045] text-slate-300 transition duration-300 active:scale-95"
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-200/12 bg-white/[0.045] text-slate-300 transition duration-300 active:scale-95 ${
+                      centerTitle
+                        ? `absolute top-1/2 -translate-y-1/2 ${
+                            showClose ? "left-0" : "right-0"
+                          }`
+                        : ""
+                    }`}
                     aria-label={uz.common.close}
                   >
                     <X size={18} />
                   </button>
+                ) : null}
+                {headerTrailing ? (
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2">
+                    {headerTrailing}
+                  </div>
                 ) : null}
               </div>
 

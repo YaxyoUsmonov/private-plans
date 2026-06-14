@@ -117,6 +117,14 @@ button[class*="bg-violet-400/18"] {
   backdrop-filter: none !important;
 }
 
+.analytics-period-popover {
+  border: 1px solid rgba(127, 0, 255, 0.18);
+  border-radius: 16px;
+  background: #11162A !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45) !important;
+  opacity: 1;
+}
+
 aside,
 [class*="rounded-t-[34px]"],
 section[class*="rounded-"][class*="border"],
