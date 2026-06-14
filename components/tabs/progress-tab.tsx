@@ -155,7 +155,7 @@ function AnalyticsPeriodSelector({
                   onChange(period);
                   setOpen(false);
                 }}
-                className={`flex h-9 w-full items-center rounded-[11px] px-3 text-left text-[11px] font-black transition ${
+                className={`flex h-10 w-full items-center rounded-[11px] px-3 text-left text-[11px] font-black transition ${
                   active
                     ? "bg-[#3A025B] text-white"
                     : "bg-transparent text-slate-400 hover:bg-white/[0.04] hover:text-white"

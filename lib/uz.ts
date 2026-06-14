@@ -36,7 +36,6 @@ export const uz = {
   today: {
     title: "Kerak",
     activeSystems: "faol tizim",
-    consistency: "Hali barqarorlik ma'lumoti yo'q",
     done: "bajarildi",
     morningReset: "Tonggi reset",
     tomorrowPlanning: "Ertangi asosiy rejalar",

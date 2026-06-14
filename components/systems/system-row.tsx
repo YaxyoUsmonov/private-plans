@@ -42,6 +42,35 @@ const statusStyles = {
   },
 };
 
+export function SystemRowEntityIcon({
+  system,
+}: {
+  system: TodaySystemView;
+}) {
+  const EntityIcon = system.routineId ? Zap : system.goalId ? Target : Layers3;
+
+  return (
+    <EntityIcon
+      size={18}
+      className={
+        system.today.status === "completed"
+          ? "icon-tone-success"
+          : system.today.status === "missed"
+            ? "icon-tone-danger"
+            : "text-white"
+      }
+      style={{
+        color:
+          system.today.status === "completed"
+            ? "#008000"
+            : system.today.status === "missed"
+              ? "var(--status-missed)"
+              : "#FFFFFF",
+      }}
+    />
+  );
+}
+
 function SystemRowComponent({
   system,
   enableLayoutAnimation = true,
@@ -50,7 +79,6 @@ function SystemRowComponent({
   onUndo,
   onOpenDetails,
 }: SystemRowProps) {
-  const EntityIcon = system.routineId ? Zap : system.goalId ? Target : Layers3;
   const styles = statusStyles[system.today.status];
   const shouldReduceMotion = useReducedMotion();
   const dragX = useMotionValue(0);
@@ -256,24 +284,7 @@ function SystemRowComponent({
               }}
               className="flex h-9 w-9 shrink-0 items-center justify-center border-0 bg-transparent p-0 disabled:cursor-default"
             >
-              <EntityIcon
-                size={18}
-                className={
-                  system.today.status === "completed"
-                    ? "icon-tone-success"
-                    : system.today.status === "missed"
-                      ? "icon-tone-danger"
-                      : "text-white"
-                }
-                style={{
-                  color:
-                    system.today.status === "completed"
-                      ? "#008000"
-                      : system.today.status === "missed"
-                        ? "var(--status-missed)"
-                        : "#FFFFFF",
-                }}
-              />
+              <SystemRowEntityIcon system={system} />
             </button>
             <div className="min-w-0 flex-1">
               <h3 className="truncate text-base font-black text-white">{system.name}</h3>
