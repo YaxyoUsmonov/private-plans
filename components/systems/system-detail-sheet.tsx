@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, Bell, Calendar, Check, ChevronLeft, ChevronRight, Copy, Download, Layers3, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { DetailTabNavigator } from "@/components/ui/detail-tab-navigator";
+import { DetailSheetHeader } from "@/components/ui/detail-sheet-header";
 import { GoalDetailSheet } from "@/components/systems/goal-detail-sheet";
 import { DetailSettingsAction, DetailSettingsGroup, DetailSettingsRow } from "@/components/systems/detail-settings-ui";
 import { isTodaySystemViewScheduledOnDate, type CompletionLog, type TodaySystemView, type WeekdayKey } from "@/lib/mock-data";
@@ -187,7 +188,6 @@ function SystemDetailSheetContent({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose, system]);
 
-  const Icon = system.icon;
   const goNext = useCallback(() => setPageIndex((current) => Math.min(pages.length - 1, current + 1)), []);
   const goPrevious = useCallback(() => setPageIndex((current) => Math.max(0, current - 1)), []);
   const resolveSwipe = useCallback(
@@ -267,16 +267,7 @@ function SystemDetailSheetContent({
             onTouchCancelCapture={handleTouchCancel}
           >
             <header className="px-4 pb-3 pt-4">
-              <div className="flex items-start gap-4">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-200/12 bg-violet-400/10 text-violet-100">
-                    <Icon size={21} />
-                  </span>
-                  <div className="min-w-0">
-                    <h2 className="truncate text-2xl font-black text-white">{system.name}</h2>
-                  </div>
-                </div>
-              </div>
+              <DetailSheetHeader title={system.name} onClose={onClose} />
 
               <div className="mt-4">
                 <DetailTabNavigator pages={pages} pageIndex={pageIndex} onChange={setPageIndex} />

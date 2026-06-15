@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, CalendarDays, Copy, Download, Gauge, Hash, Layers3, Pencil, Target, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { DetailTabNavigator } from "@/components/ui/detail-tab-navigator";
+import { DetailSheetHeader } from "@/components/ui/detail-sheet-header";
 import { useBottomSheetDrag } from "@/components/ui/use-bottom-sheet-drag";
 import { DetailSettingsAction, DetailSettingsGroup, DetailSettingsRow } from "@/components/systems/detail-settings-ui";
 import type { TodaySystemView } from "@/lib/mock-data";
@@ -70,12 +71,7 @@ export function GoalDetailSheet({
       }}
     >
       <header className="px-4 pb-3 pt-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-200/12 bg-violet-400/10 text-violet-100">
-            <Target size={21} />
-          </span>
-          <h2 className="truncate text-2xl font-black text-white">{goal.title}</h2>
-        </div>
+        <DetailSheetHeader title={goal.title} onClose={onClose} />
 
         <div className="mt-4">
           <DetailTabNavigator pages={pages} pageIndex={pageIndex} onChange={setPageIndex} />

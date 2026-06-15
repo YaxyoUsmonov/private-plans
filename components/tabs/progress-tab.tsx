@@ -8,6 +8,7 @@ import {
   CalendarClock,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Flame,
   History,
@@ -29,7 +30,7 @@ import { SystemDetailSheet } from "@/components/systems/system-detail-sheet";
 import { DetailPanel, PanelEmptyState } from "@/components/ui/detail-panel";
 import { DetailTabNavigator } from "@/components/ui/detail-tab-navigator";
 import { toDateKey } from "@/lib/date-utils";
-import { isRoutineScheduledOnDate, toGoalDetailView, toRoutineDetailView, toSystemListViews, type CreateSystemPayload, type System, type SystemListView } from "@/lib/mock-data";
+import { isRoutineScheduledOnDate, toGoalDetailView, toRoutineDetailView, toSystemListViews, toTodaySystemViews, type CreateSystemPayload, type System, type SystemListView } from "@/lib/mock-data";
 import { sheetSpring } from "@/lib/motion";
 import { uz } from "@/lib/uz";
 
@@ -50,15 +51,17 @@ const progressSections: Array<{
   subtitle: string;
   icon: typeof Bot;
 }> = [
-  { key: "systems-list", title: uz.progress.systems, subtitle: uz.progress.systemsSubtitle, icon: Layers3 },
-  { key: "ai", title: uz.progress.aiCoach, subtitle: uz.progress.aiSubtitle, icon: Bot },
   { key: "weekly", title: "Umumiy tahlil", subtitle: uz.progress.weeklySubtitle, icon: MessageSquareText },
+  { key: "ai", title: uz.progress.aiCoach, subtitle: uz.progress.aiSubtitle, icon: Bot },
   { key: "consistency", title: uz.progress.consistency, subtitle: uz.progress.consistencySubtitle, icon: Flame },
+  { key: "systems-list", title: uz.progress.systems, subtitle: uz.progress.systemsSubtitle, icon: Layers3 },
 ];
 
 const systemDetailPages = ["Tizimlar", "Odatlar", "Maqsadlar"] as const;
 const analyticsPeriods = ["Bugun", "Hafta", "Oy", "Yil"] as const;
-const analyticsPages = ["Ritm", "Natija", "Xulosa"] as const;
+const analyticsPages = ["Ritm", "Seriya", "Kalendar"] as const;
+const analyticsMonthNames = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"];
+const analyticsWeekdayLabels = ["Dush", "Sesh", "Chor", "Pay", "Jum", "Shan", "Yak"];
 type AnalyticsPeriod = (typeof analyticsPeriods)[number];
 
 type ProgressTabProps = {
@@ -265,6 +268,7 @@ export function ProgressTab({
         {activeMeta?.key === "weekly" ? (
           <WeeklyReviewDetail
             systems={systems}
+            period={analyticsPeriod}
             onOpenRoutine={(systemId, routineId) => setWeeklyRoutineDetail({ systemId, routineId })}
             onOpenGoal={(systemId, goalId) => setWeeklyGoalDetail({ systemId, goalId })}
           />
@@ -751,15 +755,20 @@ function AiCoachDetail() {
 
 function WeeklyReviewDetail({
   systems,
+  period,
   onOpenRoutine,
   onOpenGoal,
 }: {
   systems: System[];
+  period: AnalyticsPeriod;
   onOpenRoutine: (systemId: string, routineId: string) => void;
   onOpenGoal: (systemId: string, goalId: string) => void;
 }) {
 const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
   const [pageIndex, setPageIndex] = useState(0);
+  const [calendarMonth, setCalendarMonth] = useState(
+    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  );
   const { current } = getWeeklyRanges();
   const allLogs = getCompletionLogs(systems);
   const logs = allLogs.filter(
@@ -776,6 +785,7 @@ const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
   const weakestHabit = getRoutineInsight(systems, logs, "missed", mostActiveHabit.id);
   const goalChanges = getWeeklyGoalChanges(systems, allLogs, current.start, current.end);
   const weakestGoal = getWeakGoal(systems, allLogs, current.start, goalChanges[0]?.goalId);
+  const streakRanking = getStreakRanking(systems, period);
   const timeline = getWeeklyTimeline(systems, rhythmLogs, current.start);
   const mostActiveDay = timeline.reduce((best, day) =>
     day.count > best.count ? day : best,
@@ -786,24 +796,6 @@ const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
   const rhythmMinHeight = 10;
   const rhythmMaxHeight = 82;
   const rhythmEmptyHeight = 18;
-  const busiestDays = getBusiestDayLabels(
-    getWeeklyTimeline(systems, completedLogs, current.start),
-  );
-  const hasMultipleBusiestDays = busiestDays.includes(" va ") || busiestDays.includes(",");
-  const summaryLines = totalCount
-    ? [
-        `Bu hafta ${completedCount} faoliyat bajarildi.`,
-        busiestDays
-          ? `${busiestDays} eng faol ${hasMultipleBusiestDays ? "kunlar" : "kun"} bo‘ldi.`
-          : null,
-        goalChanges[0] ? `${goalChanges[0].title} maqsadida progress kuzatildi.` : null,
-        weakestGoal.hasIssue
-          ? `Keyingi hafta ${weakestGoal.value}ga ko‘proq e'tibor berish tavsiya etiladi.`
-          : weakestHabit.count
-            ? `Keyingi hafta ${weakestHabit.value} odatida ritmni tiklash tavsiya etiladi.`
-            : "Keyingi hafta odat barqarorligini davom ettirish tavsiya etiladi.",
-      ].filter((line): line is string => Boolean(line))
-    : ["Haftalik xulosa uchun ma’lumot yetarli emas."];
 
   return (
     <div className="space-y-3">
@@ -916,6 +908,13 @@ const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
       ) : null}
 
       {pageIndex === 1 ? (
+        <StreakRanking
+          items={streakRanking}
+          onOpenRoutine={onOpenRoutine}
+        />
+      ) : null}
+
+      {false ? (
         <section>
         <div className="overflow-hidden rounded-[22px] border border-white/[0.06] bg-white/[0.025]">
           <div className="px-4 py-3.5">
@@ -1008,20 +1007,402 @@ const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
       ) : null}
 
       {pageIndex === 2 ? (
-        <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
-        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-          Haftalik xulosa
-        </p>
-        <div className="mt-2 space-y-1 text-sm font-semibold leading-5 text-slate-200">
-          {summaryLines.map((line) => (
-            <p key={line}>{line}</p>
-          ))}
-        </div>
-        </div>
+        <AnalyticsCalendarPage
+          systems={systems}
+          month={calendarMonth}
+          onMonthChange={setCalendarMonth}
+        />
       ) : null}
 
     </div>
   );
+}
+
+type AnalyticsCalendarTone =
+  | "completed"
+  | "partial"
+  | "missed"
+  | "planned"
+  | "upcoming"
+  | "dim";
+
+type AnalyticsCalendarDay = {
+  date: Date;
+  dateKey: string;
+  tone: AnalyticsCalendarTone;
+};
+
+function AnalyticsCalendarPage({
+  systems,
+  month,
+  onMonthChange,
+}: {
+  systems: System[];
+  month: Date;
+  onMonthChange: (month: Date) => void;
+}) {
+  const { blanks, days } = getAnalyticsCalendarMonth(systems, month);
+  const summary = days.reduce(
+    (result, day) => {
+      if (day.tone === "completed") result.completed += 1;
+      if (day.tone === "partial") result.partial += 1;
+      if (day.tone === "missed") result.missed += 1;
+      return result;
+    },
+    { completed: 0, partial: 0, missed: 0 },
+  );
+
+  const moveMonth = (amount: number) => {
+    onMonthChange(
+      new Date(month.getFullYear(), month.getMonth() + amount, 1),
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => moveMonth(-1)}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/[0.07] bg-white/[0.035] text-slate-300 transition active:scale-95"
+            aria-label="Oldingi oy"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <p className="text-xs font-black text-white">
+            {analyticsMonthNames[month.getMonth()]} {month.getFullYear()}
+          </p>
+          <button
+            type="button"
+            onClick={() => moveMonth(1)}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/[0.07] bg-white/[0.035] text-slate-300 transition active:scale-95"
+            aria-label="Keyingi oy"
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+
+        <div className="mt-2 grid grid-cols-7 gap-0.5 text-center">
+          {analyticsWeekdayLabels.map((label) => (
+            <span
+              key={label}
+              className="py-0.5 text-[8px] font-black uppercase tracking-[0.06em] text-slate-500"
+            >
+              {label}
+            </span>
+          ))}
+          {blanks.map((blank) => (
+            <span key={blank} aria-hidden />
+          ))}
+          {days.map((day) => (
+            <span
+              key={day.dateKey}
+              className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-black ${analyticsCalendarToneClass[day.tone]}`}
+              aria-label={`${day.dateKey}: ${analyticsCalendarToneLabel[day.tone]}`}
+            >
+              {day.date.getDate()}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-violet-200/10 bg-white/[0.03] px-3 py-5">
+        <div className="grid grid-cols-3 items-stretch divide-x divide-white/[0.06]">
+          <AnalyticsCalendarMetric
+            label="To‘liq bajarildi"
+            value={summary.completed}
+            valueClassName="text-[#008000]"
+          />
+          <AnalyticsCalendarMetric
+            label="Chala bajarildi"
+            value={summary.partial}
+            valueClassName="text-[#EA580C]"
+          />
+          <AnalyticsCalendarMetric
+            label="Bajarilmadi"
+            value={summary.missed}
+            valueClassName="text-[var(--status-missed)]"
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+const analyticsCalendarToneClass: Record<AnalyticsCalendarTone, string> = {
+  completed: "border-[#008000]/35 bg-[#008000]/20 text-[#BFFFC5]",
+  partial: "border-[#EA580C]/35 bg-[#EA580C]/18 text-[#FFD7B5]",
+  missed:
+    "border-[var(--status-missed)]/35 bg-[var(--status-missed)]/16 text-[#FFD1CD]",
+  planned: "border-white/[0.06] bg-white/[0.035] text-slate-300",
+  upcoming: "border-transparent bg-transparent text-slate-600",
+  dim: "border-transparent bg-transparent text-slate-700",
+};
+
+const analyticsCalendarToneLabel: Record<AnalyticsCalendarTone, string> = {
+  completed: "to‘liq bajarildi",
+  partial: "chala bajarildi",
+  missed: "bajarilmadi",
+  planned: "kutilmoqda",
+  upcoming: "kelajakdagi reja",
+  dim: "reja yo‘q",
+};
+
+function getAnalyticsCalendarMonth(systems: System[], month: Date) {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const firstDayOffset = (new Date(year, monthIndex, 1).getDay() + 6) % 7;
+  const todayKey = toDateKey(new Date());
+  const days: AnalyticsCalendarDay[] = Array.from(
+    { length: daysInMonth },
+    (_, index) => {
+      const date = new Date(year, monthIndex, index + 1);
+      const dateKey = toDateKey(date);
+      const items = toTodaySystemViews(systems, dateKey);
+      const completedCount = items.filter(
+        (item) => item.today.status === "completed",
+      ).length;
+      const missedCount = items.filter(
+        (item) => item.today.status === "missed",
+      ).length;
+      let tone: AnalyticsCalendarTone = "dim";
+
+      if (items.length) {
+        if (completedCount === items.length) {
+          tone = "completed";
+        } else if (completedCount > 0) {
+          tone = "partial";
+        } else if (dateKey < todayKey || missedCount === items.length) {
+          tone = "missed";
+        } else if (dateKey === todayKey) {
+          tone = "planned";
+        } else {
+          tone = "upcoming";
+        }
+      }
+
+      return { date, dateKey, tone };
+    },
+  );
+
+  return {
+    blanks: Array.from(
+      { length: firstDayOffset },
+      (_, index) => `blank-${index}`,
+    ),
+    days,
+  };
+}
+
+function AnalyticsCalendarMetric({
+  label,
+  value,
+  valueClassName,
+}: {
+  label: string;
+  value: number;
+  valueClassName: string;
+}) {
+  return (
+    <div className="flex min-h-[94px] min-w-0 flex-col items-center justify-center px-2 text-center">
+      <p className="min-h-6 max-w-[96px] text-[8px] font-black uppercase leading-3 tracking-[0.08em] text-violet-100/55">
+        {label}
+      </p>
+      <p className={`mt-2 text-3xl font-black leading-none ${valueClassName}`}>
+        {value}
+      </p>
+      <p className="mt-1 text-[10px] font-black uppercase leading-none tracking-[0.08em] text-slate-500">
+        kun
+      </p>
+    </div>
+  );
+}
+
+type StreakRankingItem = {
+  id: string;
+  systemId: string;
+  name: string;
+  value: number;
+  valueLabel: string;
+};
+
+function StreakRanking({
+  items,
+  onOpenRoutine,
+}: {
+  items: StreakRankingItem[];
+  onOpenRoutine: (systemId: string, routineId: string) => void;
+}) {
+  if (!items.length) {
+    return (
+      <PanelEmptyState
+        title="Hali seriya uchun odat yo'q"
+        compact
+      />
+    );
+  }
+
+  return (
+    <section>
+      <div className="overflow-hidden rounded-[22px] border border-white/[0.06] bg-white/[0.025] divide-y divide-white/[0.06]">
+        {items.map((item, index) => {
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onOpenRoutine(item.systemId, item.id)}
+              className="flex min-h-[58px] w-full items-center gap-3 px-3.5 py-2.5 text-left transition active:bg-white/[0.04]"
+            >
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center text-center font-black ${
+                  index < 3 ? "text-base leading-none" : "text-xs text-slate-500"
+                }`}
+                aria-label={`${index + 1}-o‘rin`}
+              >
+                {index === 0
+                  ? "🥇"
+                  : index === 1
+                    ? "🥈"
+                    : index === 2
+                      ? "🥉"
+                      : index + 1}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm font-black text-white">
+                {item.name}
+              </span>
+              <span
+                className={`shrink-0 self-center text-sm font-black ${
+                  item.value > 0
+                    ? "text-[#008000]"
+                    : item.value < 0
+                      ? "text-[var(--status-missed)]"
+                      : "text-white"
+                }`}
+              >
+                {item.valueLabel}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function getStreakRanking(
+  systems: System[],
+  period: AnalyticsPeriod,
+): StreakRankingItem[] {
+  const range = getAnalyticsPeriodRange(period);
+  const periodDates = getDateKeysBetween(range.start, range.end);
+  const items = systems.flatMap((system) => {
+    return system.routines.map((routine): StreakRankingItem => {
+      const scheduledDates = periodDates.filter((dateKey) =>
+        isRoutineScheduledOnDate(system, routine, dateKey),
+      );
+      const actionIds = new Set(
+        system.dailyActions
+          .filter((action) => action.routineId === routine.id)
+          .map((action) => action.id),
+      );
+      const statusesByDate = new Map<
+        string,
+        "completed" | "missed"
+      >();
+      system.completionLogs
+        .filter(
+          (log) =>
+            (log.status === "completed" || log.status === "missed") &&
+            scheduledDates.includes(log.date) &&
+            (log.routineId === routine.id ||
+              actionIds.has(log.dailyActionId)),
+        )
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+        .forEach((log) => {
+          statusesByDate.set(log.date, log.status as "completed" | "missed");
+        });
+      const streak = calculateRoutinePeriodStreak(
+        scheduledDates,
+        statusesByDate,
+      );
+
+      return {
+        id: routine.id,
+        systemId: system.id,
+        name: routine.title,
+        value: streak,
+        valueLabel: `${streak} kun`,
+      };
+    });
+  });
+
+  return items.sort(
+    (left, right) =>
+      right.value - left.value ||
+      left.name.localeCompare(right.name, "uz"),
+  );
+}
+
+function calculateRoutinePeriodStreak(
+  scheduledDates: string[],
+  statusesByDate: Map<string, "completed" | "missed">,
+) {
+  const todayKey = toDateKey(new Date());
+  let streakStatus: "completed" | "missed" | null = null;
+  let streakLength = 0;
+
+  for (let index = scheduledDates.length - 1; index >= 0; index -= 1) {
+    const dateKey = scheduledDates[index];
+    let status = statusesByDate.get(dateKey);
+
+    if (!status) {
+      if (dateKey === todayKey) continue;
+      status = "missed";
+    }
+
+    if (!streakStatus) {
+      streakStatus = status;
+      streakLength = 1;
+      continue;
+    }
+
+    if (status !== streakStatus) break;
+    streakLength += 1;
+  }
+
+  if (!streakStatus) return 0;
+  return streakStatus === "completed" ? streakLength : -streakLength;
+}
+
+function getAnalyticsPeriodRange(period: AnalyticsPeriod) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(today);
+
+  if (period === "Hafta") {
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  } else if (period === "Oy") {
+    start.setDate(1);
+  } else if (period === "Yil") {
+    start.setMonth(0, 1);
+  }
+
+  return { start: toDateKey(start), end: toDateKey(today) };
+}
+
+function getDateKeysBetween(startKey: string, endKey: string) {
+  const dates: string[] = [];
+  const cursor = new Date(`${startKey}T00:00:00`);
+  const end = new Date(`${endKey}T00:00:00`);
+
+  while (cursor <= end) {
+    dates.push(toDateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return dates;
 }
 
 function WeeklyDayActivityGroup({
@@ -1119,21 +1500,6 @@ const weeklyDayLabels = [
   { full: "Shanba", short: "Sh" },
   { full: "Yakshanba", short: "Y" },
 ] as const;
-
-function getBusiestDayLabels(
-  timeline: ReturnType<typeof getWeeklyTimeline>,
-) {
-  const highestCount = Math.max(...timeline.map((day) => day.count));
-  if (!highestCount) return "";
-
-  const labels = timeline
-    .filter((day) => day.count === highestCount)
-    .map((day) => day.label);
-
-  if (labels.length === 1) return labels[0];
-  if (labels.length === 2) return `${labels[0]} va ${labels[1]}`;
-  return `${labels.slice(0, -1).join(", ")} va ${labels.at(-1)}`;
-}
 
 function getWeeklyTimeline(
   systems: System[],

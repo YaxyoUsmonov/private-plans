@@ -81,7 +81,6 @@ function ProgressSystemDetailContent({
 }) {
   const [pageIndex, setPageIndex] = useState(0);
   const Icon = iconRegistry[system.iconKey];
-
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
